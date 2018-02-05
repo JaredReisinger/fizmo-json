@@ -3,8 +3,11 @@
  * This file is part of fizmo-json.  Please see LICENSE.md for the license.
  */
 
-#include <string.h>
+// #include <string.h>
+#include <stdio.h>
+#include "config.h"
 
-int main(char **argv, int argc) {
-    return 0;
+int main(int argc, char **argv) {
+    fprintf(stderr, "%s is not yet implmented!\n", PACKAGE_NAME);
+    return 1;
 }

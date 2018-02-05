@@ -20,8 +20,11 @@ AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AC_PROG_CC
 # AC_PROG_RANLIB
 
+AC_HEADER_STDC
+
 PKG_CHECK_MODULES([libfizmo], [libfizmo >= 0.7.15])
 
+AC_CONFIG_HEADERS([src/fizmo-json/config.h])
 AC_CONFIG_FILES([Makefile src/fizmo-json/Makefile])
 
 AC_OUTPUT

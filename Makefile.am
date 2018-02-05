@@ -2,7 +2,6 @@
 #
 # This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
-
 # AUTOMAKE_OPTIONS = -Wno-override
 
 #localedir = $(datarootdir)/fizmo/locales
@@ -14,5 +13,5 @@
 # PKG_DIR = $(fizmo_build_prefix)/lib/pkgconfig
 # PKGFILE = $(PKG_DIR)/libfizmo.pc
 
-# SUBDIRS = src/fizmo-remglk
-# man6_MANS = src/man/fizmo-remglk.6
+SUBDIRS = src/fizmo-json
+# man6_MANS = src/man/fizmo-json.1
