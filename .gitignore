@@ -1,0 +1,23 @@
+# autoreconf...
+autom4te.cache/
+Makefile.in
+aclocal.m4
+ar-lib
+compile
+configure
+depcomp
+install-sh
+missing
+
+# ./configure...
+.deps/
+config.log
+config.status
+Makefile
+
+# make...
+.dirstamp
+*.a
+*.o
+
+src/fizmo-remglk/fizmo-remglk
