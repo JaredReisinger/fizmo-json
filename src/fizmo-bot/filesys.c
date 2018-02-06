@@ -3,7 +3,7 @@
  * This file is part of fizmo-bot.  Please see LICENSE.md for the license.
  */
 
-// #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include "config.h"
 #include "util.h"
@@ -13,160 +13,135 @@
 
 
 z_file* filesys_openfile(char *filename, int filetype, int fileaccess) {
-    dbg(__func__);
-    fprintf(stderr, "  %s, %d, %d\n", filename, filetype, fileaccess);
+    trace("%s, %d, %d", filename, filetype, fileaccess);
     return NULL;
 }
 
 int filesys_closefile(z_file *file_to_close) {
-    dbg(__func__);
-    fprintf(stderr, "  %d\n", (int)file_to_close);
+    trace("%s", file_to_close ? file_to_close->filename : "(NULL)");
     return 0;
 }
 
 // Returns -1 on EOF.
 int filesys_readchar(z_file *fileref) {
-    dbg(__func__);
-    fprintf(stderr, "  %d\n", (int)fileref);
+    trace("%s", fileref ? fileref->filename : "(NULL)");
     return 0;
 }
 
 // Returns number of bytes read.
 size_t filesys_readchars(void *ptr, size_t len, z_file *fileref) {
-    dbg(__func__);
-    fprintf(stderr, "  %d\n", (int)fileref);
+    trace("%s", fileref ? fileref->filename : "(NULL)");
     return 0;
 }
 
 int filesys_writechar(int ch, z_file *fileref) {
-    dbg(__func__);
-    fprintf(stderr, "  %d, %c\n", (int)fileref, ch);
+    trace("'%c', %s", ch, fileref ? fileref->filename : "(NULL)");
     return 0;
 }
 
 // Returns number of bytes successfully written.
 size_t filesys_writechars(void *ptr, size_t len, z_file *fileref) {
-    dbg(__func__);
-    fprintf(stderr, "  %d\n", (int)fileref);
+    trace("%s", fileref ? fileref->filename : "(NULL)");
     return 0;
 }
 
 int filesys_writestring(char *s, z_file *fileref) {
-    dbg(__func__);
-    fprintf(stderr, "  %d, %s\n", (int)fileref, s);
+    trace("\"%s\", %s", s, fileref ? fileref->filename : "(NULL)");
     return 0;
 }
 
 int filesys_writeucsstring(z_ucs *s, z_file *fileref) {
-    dbg(__func__);
-    fprintf(stderr, "  %d\n", (int)fileref);
+    trace("\"%s\", %s", (char*)s, fileref ? fileref->filename : "(NULL)");
     return 0;
 }
 
 int filesys_fileprintf(z_file *fileref, char *format, ...) {
-    dbg(__func__);
-    fprintf(stderr, "  %d\n", (int)fileref);
+    trace("%s", fileref ? fileref->filename : "(NULL)");
     return 0;
 }
 
 int filesys_vfileprintf(z_file *fileref, char *format, va_list ap) {
-    dbg(__func__);
-    fprintf(stderr, "  %d\n", (int)fileref);
+    trace("%s", fileref ? fileref->filename : "(NULL)");
     return 0;
 }
 
 int filesys_filescanf(z_file *fileref, char *format, ...) {
-    dbg(__func__);
-    fprintf(stderr, "  %d\n", (int)fileref);
+    trace("%s", fileref ? fileref->filename : "(NULL)");
     return 0;
 }
 
 int filesys_vfilescanf(z_file *fileref, char *format, va_list ap) {
-    dbg(__func__);
-    fprintf(stderr, "  %d\n", (int)fileref);
+    trace("%s", fileref ? fileref->filename : "(NULL)");
     return 0;
 }
 
 long filesys_getfilepos(z_file *fileref) {
-    dbg(__func__);
-    fprintf(stderr, "  %d\n", (int)fileref);
+    trace("%s", fileref ? fileref->filename : "(NULL)");
     return 0;
 }
 
 int filesys_setfilepos(z_file *fileref, long seek, int whence) {
-    dbg(__func__);
-    fprintf(stderr, "  %d, %ld, %d\n", (int)fileref, seek, whence);
+    trace("%s, %d, %d", fileref ? fileref->filename : "(NULL)", seek, whence);
     return 0;
 }
 
 int filesys_unreadchar(int c, z_file *fileref) {
-    dbg(__func__);
-    fprintf(stderr, "  %d\n", (int)fileref);
+    trace("%s", fileref ? fileref->filename : "(NULL)");
     return 0;
 }
 
 int filesys_flushfile(z_file *fileref) {
-    dbg(__func__);
-    fprintf(stderr, "  %d\n", (int)fileref);
+    trace("%s", fileref ? fileref->filename : "(NULL)");
     return 0;
 }
 
 time_t filesys_get_last_file_mod_timestamp(z_file *fileref) {
-    dbg(__func__);
-    fprintf(stderr, "  %d\n", (int)fileref);
+    trace("%s", fileref ? fileref->filename : "(NULL)");
     return 0;
 }
 
 int filesys_get_fileno(z_file *fileref) {
-    dbg(__func__);
-    fprintf(stderr, "  %d\n", (int)fileref);
+    trace("%s", fileref ? fileref->filename : "(NULL)");
     return 0;
 }
 
 FILE* filesys_get_stdio_stream(z_file *fileref) {
-    dbg(__func__);
-    fprintf(stderr, "  %d\n", (int)fileref);
+    trace("%s", fileref ? fileref->filename : "(NULL)");
     return NULL;
 }
 
 char* filesys_get_cwd() {
-    dbg(__func__);
+    trace("");
     return NULL;
 }
 
 int filesys_ch_dir(char *dirname) {
-    dbg(__func__);
-    fprintf(stderr, "  %s\n", dirname);
+    trace("%s", dirname);
     return 0;
 }
 
 z_dir* filesys_open_dir(char *dirname) {
-    dbg(__func__);
-    fprintf(stderr, "  %s\n", dirname);
+    trace("%s", dirname);
     return NULL;
 }
 
 int filesys_close_dir(z_dir *dirref) {
-    dbg(__func__);
-    fprintf(stderr, "  %d\n", (int)dirref);
+    trace("[%d]", (int)dirref);
     return 0;
 }
 
 int filesys_read_dir(struct z_dir_ent *dir_ent, z_dir *dirref) {
-    dbg(__func__);
-    fprintf(stderr, "  %d\n", (int)dirref);
+    trace("[%d]", (int)dirref);
     return 0;
 }
 
 int filesys_make_dir(char *path) {
-    dbg(__func__);
-    fprintf(stderr, "  %s\n", path);
+    trace("%s", path);
     return 0;
 }
 
 bool filesys_is_filename_directory(char *filename) {
-    dbg(__func__);
-    fprintf(stderr, "  %s\n", filename);
+    trace("%s", filename);
     return false;
 }
 

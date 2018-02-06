@@ -32,7 +32,7 @@ char *screen_get_config_value(char *key)    { return NULL; }
 char **screen_get_config_option_names()     { return NULL; }
 
 void screen_link_to_story(struct z_story *story) {
-    dbg(__func__);
+    trace("%s", story ? story->title : "(NULL)");
     // if (ver <= 3)
     // {
     //   if (statusline) {
@@ -45,7 +45,7 @@ void screen_link_to_story(struct z_story *story) {
 
 // Called at @restart time.
 void screen_reset() {
-    dbg(__func__);
+    trace("");
     // if (statuswin) {
     //   glk_window_close(statuswin, NULL);
     //   statuswin = NULL;
@@ -70,7 +70,7 @@ void screen_reset() {
 // exit through the end of fizmo_main(), which is the end of glk_main(),
 // so we'll get a normal Glk shut down anyway.
 int screen_close(z_ucs *error_message) {
-    dbg(__func__);
+    trace("");
     if (error_message){
         // glkint_fatal_error_handler(NULL, error_message, NULL, 0, 0);
     }
@@ -79,11 +79,11 @@ int screen_close(z_ucs *error_message) {
 }
 
 void screen_set_buffer_mode(uint8_t new_buffer_mode) {
-    dbg(__func__);
+    trace("%d", new_buffer_mode);
 }
 
 void screen_output_z_ucs(z_ucs *z_ucs_output) {
-    dbg(__func__);
+    trace("%s", (char*)z_ucs_output);
     // Conveniently, z_ucs is the same as glui32.
     // glk_put_string_uni(z_ucs_output);
 }
@@ -92,75 +92,81 @@ int16_t screen_read_line(zscii *dest, uint16_t maximum_length,
     uint16_t tenth_seconds, uint32_t verification_routine,
     uint8_t preloaded_input, int *tenth_seconds_elapsed,
     bool disable_command_history, bool return_on_escape) {
-    dbg(__func__);
+    trace("");
     return 0;
 }
 
 int screen_read_char(uint16_t tenth_seconds,
     uint32_t verification_routine, int *tenth_seconds_elapsed) {
-    dbg(__func__);
+    trace("");
     return 0;
 }
 
 void screen_show_status(z_ucs *room_description,
     int status_line_mode, int16_t parameter1, int16_t parameter2) {
-    dbg(__func__);
+    trace("%s", (char*)room_description);
 }
 
 
 void screen_set_text_style(z_style text_style) {
-    dbg(__func__);
+    trace("%d", text_style);
 }
 
 
-void screen_set_colour(z_colour foreground,
-    z_colour background, int16_t window) {
-    dbg(__func__);
+void screen_set_colour(z_colour foreground, z_colour background, int16_t window) {
+    trace("%d, %d, %d", foreground, background, window);
 }
 
 void screen_set_font(z_font font_type) {
-    dbg(__func__);
+    trace("%d", font_type);
 }
 
 void screen_split_window(int16_t nof_lines) {
-    dbg(__func__);
+    trace("%d", nof_lines);
 }
 
 
 void screen_set_window(int16_t window_number) {
-    dbg(__func__);
+    trace("%d", window_number);
 }
 
 void screen_erase_window(int16_t window_number) {
-    dbg(__func__);
+    trace("%d", window_number);
 }
 
 void screen_set_cursor(int16_t line, int16_t column, int16_t window) {
-    dbg(__func__);
+    trace("%d, %d, %d", line, column, window);
 }
 
-uint16_t screen_get_cursor_row()    { return 0; }
-uint16_t screen_get_cursor_column() { return 0; }
+uint16_t screen_get_cursor_row()    {
+    trace("");
+    return 0;
+}
+
+uint16_t screen_get_cursor_column() {
+    trace("");
+    return 0;
+}
 
 void screen_erase_line_value(uint16_t start_position) {
-    dbg(__func__);
+    trace("%d", start_position);
 }
 
 void screen_erase_line_pixels(uint16_t start_position) {
-    dbg(__func__);
+    trace("%d", start_position);
 }
 
 void screen_output_info() {
-    dbg(__func__);
+    trace("");
 }
 
 void screen_game_was_restored_and_history_modified() {
-    dbg(__func__);
+    trace("");
 }
 
 int screen_prompt_for_filename(char *filename_suggestion,
     z_file **result, char *directory, int filetype, int fileaccess) {
-    dbg(__func__);
+    trace("%s, (result), %s, %d, %d", filename_suggestion, directory, filetype, fileaccess);
     return 0;
 }
 
