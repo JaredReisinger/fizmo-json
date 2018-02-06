@@ -1,4 +1,4 @@
-/* src/fizmo-json/config.h.in.  Generated from configure.ac by autoheader.  */
+/* src/fizmo-bot/config.h.in.  Generated from configure.ac by autoheader.  */
 
 /* Name of package */
 #undef PACKAGE

@@ -1,4 +1,4 @@
-# fizmo-json
+# fizmo-bot
 
 A [Fizmo](https://github.com/chrender/fizmo) front-end meant for
 bot-mediated streaming/flowing UIs, like

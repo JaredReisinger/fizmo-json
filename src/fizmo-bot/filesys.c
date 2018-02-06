@@ -1,6 +1,6 @@
 /* filesys.c
  *
- * This file is part of fizmo-json.  Please see LICENSE.md for the license.
+ * This file is part of fizmo-bot.  Please see LICENSE.md for the license.
  */
 
 // #include <string.h>
@@ -171,7 +171,7 @@ bool filesys_is_filename_directory(char *filename) {
 }
 
 
-struct z_filesys_interface json_filesys = {
+struct z_filesys_interface bot_filesys = {
     &filesys_openfile,          // openfile
     &filesys_closefile,         // closefile
 

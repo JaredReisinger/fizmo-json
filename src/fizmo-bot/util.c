@@ -1,6 +1,6 @@
 /* util.c
  *
- * This file is part of fizmo-json.  Please see LICENSE.md for the license.
+ * This file is part of fizmo-bot.  Please see LICENSE.md for the license.
  */
 
 // #include <string.h>

@@ -1,6 +1,6 @@
 /* screen.c
  *
- * This file is part of fizmo-json.  Please see LICENSE.md for the license.
+ * This file is part of fizmo-bot.  Please see LICENSE.md for the license.
  */
 
 // #include <string.h>
@@ -166,7 +166,7 @@ int screen_prompt_for_filename(char *filename_suggestion,
 
 
 
-struct z_screen_interface json_screen = {
+struct z_screen_interface bot_screen = {
     &screen_get_name,           // get_interface_name
 
     &screen_return_true,        // is_status_line_available
