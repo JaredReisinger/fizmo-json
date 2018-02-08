@@ -42,6 +42,10 @@ typedef struct {
     z_style style;
 } format_info;
 
+// const format_info DEFAULT_FORMAT = (format_info){ .style = Z_STYLE_ROMAN };
+#define DEFAULT_FORMAT (format_info){ .style = Z_STYLE_ROMAN }
+
+
 typedef struct {
     format_info format;
     int ch;
@@ -55,9 +59,11 @@ typedef struct formatted_text {
 
 const formatted_char empty_char = (formatted_char){ };
 
-format_info currentFormat = (format_info){
-    .style = Z_STYLE_ROMAN,
-};
+format_info currentFormat = DEFAULT_FORMAT;
+
+bool format_equal(format_info a, format_info b) {
+    return a.style == b.style;
+}
 
 formatted_char unbufferedWindow[SCREEN_HEIGHT][SCREEN_WIDTH];
 
@@ -141,20 +147,128 @@ void dump_unbuffered() {
     unbufferedTouched = false;
 }
 
-// #define Z_STYLE_ROMAN 0
-// #define Z_STYLE_REVERSE_VIDEO 1
-// #define Z_STYLE_BOLD 2
-// #define Z_STYLE_ITALIC 4
-// #define Z_STYLE_FIXED_PITCH 8
+formatted_text *new_text(char *src, int start, int end, format_info format) {
+    formatted_text *text = calloc(sizeof(formatted_text), 1);
+    text->format = format;
+    text->str = strndup(&src[start], end-start);
+    return text;
+}
 
-// char* generate_unbuffered() {
-//
-// }
+void append_buffered(char *src, int start, int end, format_info format, bool advance) {
+    trace(3, "(src), %d, %d, %s", start, end, advance ? "true" : "false");
+
+    if (end-start > 0) {
+        if (bufferedWindow[bufferedLines] == NULL) {
+            tracex(3, "starting new line");
+            bufferedWindow[bufferedLines] = new_text(src, start, end, format);
+        } else {
+            formatted_text *cur = bufferedWindow[bufferedLines];
+            tracex(3, "appending to existing line (%p)", cur);
+            while (cur->next != NULL) {
+                cur = cur->next;
+                tracex(3, "walking... (%p)", cur);
+            }
+
+            // We'll either add a new formatted_text as 'next', or, if the
+            // formatting hasn't changed, simply append it to the current one.
+            if (format_equal(format, cur->format)) {
+                char *str;
+                asprintf(&str, "%s%.*s", cur->str, end-start, &src[start]);
+                free(cur->str);
+                cur->str = str;
+            } else {
+                cur->next = new_text(src, start, end, format);
+            }
+        }
+    }
+
+    if (advance) {
+        tracex(3, "advancing line");
+        bufferedLines++;
+    }
+}
+
+
+// We sometimes see the unbuffered window used to provide "popup" text, as
+// opposed to status text... so we need to make it look like buffered text so
+// that it shows up reasonably.
+void buffer_unbuffered() {
+    trace(1, "");
+
+    // Should we "insert" this before any existing buffered lines?
+    for (int l = 0; l < unbufferedLines; l++) {
+        char buf[SCREEN_WIDTH+1];
+        int buflen = 0;
+        format_info format = unbufferedWindow[l][0].format;
+
+        // work right-to-left to find the last non-empty position...
+        int end;
+        for (end = SCREEN_WIDTH; end >= 0; end--) {
+            if (unbufferedWindow[l][end].ch != 0) {
+                end++;
+                break;
+            }
+        }
+
+        for (int c = 0; c < end; c++) {
+            formatted_char *fc = &unbufferedWindow[l][c];
+            if (format_equal(fc->format, format)) {
+                buf[buflen++] = fc->ch ? fc->ch : ' ';
+            } else {
+                // format boundary!
+                buf[buflen] = '\0';
+                append_buffered(buf, 0, buflen, format, false);
+                buf[0] = fc->ch ? fc->ch : ' ';
+                buflen = 1;
+                format = fc->format;
+            }
+        }
+
+        // any trailing text...
+        append_buffered(buf, 0, buflen, format, true);
+    }
+}
+
+void set_optional_bool(json_t *obj, char *name, bool value) {
+    if (value) {
+        json_object_set_new(obj, name, json_true());
+    }
+}
 
 // Generate a JSON object for the output...
-void generate_buffered_output() {
+void generate_json_output() {
     trace(1, "");
-    json_t* lines = json_array();
+
+    // Collect status (unbuffered window)
+    json_t* status = json_array();
+
+    for (int l = 0; l < unbufferedLines; l++) {
+        char buf[SCREEN_WIDTH+1];
+        int buflen = 0;
+        format_info format = unbufferedWindow[l][0].format;
+        for (int c = 0; c < SCREEN_WIDTH; c++) {
+            formatted_char *fc = &unbufferedWindow[l][c];
+            if (format_equal(fc->format, format)) {
+                buf[buflen++] = fc->ch;
+            } else {
+                // format boundary!
+                buf[buflen] = '\0';
+                json_array_append_new(status, json_string(buf));
+                buf[0] = fc->ch;
+                buflen = 1;
+                format = fc->format;
+            }
+        }
+
+        // any trailing text...
+        if (buflen > 0) {
+            buf[buflen] = '\0';
+            json_array_append_new(status, json_string(buf));
+        }
+    }
+
+    // Collect story lines (buffered window)...
+    json_t* story = json_array();
 
     for (int l = 0; l < bufferedLines+1; l++) {
         json_t* line;
@@ -166,21 +280,29 @@ void generate_buffered_output() {
         } else {
             line = json_array();
 
-            while (text) {
-                json_array_append_new(line, json_string(text->str));
-                text = text->next;
+            for (formatted_text *cur = text; cur != NULL; cur = cur->next) {
+                json_t *span = json_object();
+                z_style style = cur->format.style;
+                // json_object_set_new(span, "style", json_integer(style));
+                set_optional_bool(span, "reverse", style & Z_STYLE_REVERSE_VIDEO);
+                set_optional_bool(span, "bold", style & Z_STYLE_BOLD);
+                set_optional_bool(span, "italic", style & Z_STYLE_ITALIC);
+                set_optional_bool(span, "fixed", style & Z_STYLE_FIXED_PITCH);
+                json_object_set_new(span, "text", json_string(cur->str));
+                json_array_append_new(line, span);
             }
         }
 
-        json_array_append_new(lines, line);
+        json_array_append_new(story, line);
     }
 
-    json_t* obj = json_object();
-    json_object_set_new(obj, "lines", lines);
-    char *str = json_dumps(obj, JSON_INDENT(2));
-    json_decref(obj);
+    json_t* output = json_object();
+    json_object_set_new(output, "status", status);
+    json_object_set_new(output, "story", story);
+    char *str = json_dumps(output, JSON_INDENT(2));
+    json_decref(output);
 
-    fprintf(stderr, "\e[38;5;6m%s\e[0m\n", str);
+    fprintf(stdout, "\e[38;5;6m%s\e[0m\n", str);
     free(str);
 }
 
@@ -247,15 +369,6 @@ void screen_link_to_story(struct z_story *story) {
     // screen interface, but this is old-school, not object-oriented C, so we'd
     // have to stash the story in a global or something.  (Or create a thunk
     // layer that the interface functions could access.)
-
-    // if (ver <= 3)
-    // {
-    //   if (statusline) {
-    //     glk_window_close(statusline, NULL);
-    //   }
-    //   statusline = glk_window_open(
-    //       mainwin, winmethod_Above | winmethod_Fixed, 1, wintype_TextGrid, 3);
-    // }
 }
 
 // Called at @restart time.
@@ -266,15 +379,7 @@ void screen_reset() {
     unbufferedLine = 0;
     unbufferedCol = 0;
     erase_buffered_window();
-    // if (statuswin) {
-    //   glk_window_close(statuswin, NULL);
-    //   statuswin = NULL;
-    // }
-    //
-    // instatuswin = false;
-    // glk_set_window(mainwin);
-    // glk_set_style(style_Normal);
-    // glk_window_clear(mainwin);
+    currentFormat = DEFAULT_FORMAT;
 }
 
 // This is called from two points: abort_interpreter() with an error message,
@@ -316,31 +421,6 @@ void screen_set_buffer_mode(uint8_t new_buffer_mode) {
     trace(1, "%s", mode);
 }
 
-void append_buffered(char *src, int start, int end, bool advance) {
-    trace(3, "(src), %d, %d, %s", start, end, advance ? "true" : "false");
-    formatted_text *text = calloc(sizeof(formatted_text), 1);
-    text->format = currentFormat;
-    text->str = strndup(&src[start], end-start);
-
-    if (bufferedWindow[bufferedLines] == NULL) {
-        tracex(3, "starting new line");
-        bufferedWindow[bufferedLines] = text;
-    } else {
-        formatted_text *cur = bufferedWindow[bufferedLines];
-        tracex(3, "appending to existing line (%d)", (int)cur);
-        while (cur->next != NULL) {
-            cur = cur->next;
-            tracex(3, "walking... (%d)", (int)cur);
-        }
-        cur->next = text;
-    }
-
-    if (advance) {
-        tracex(3, "advancing line");
-        bufferedLines++;
-    }
-}
-
 
 void screen_output_z_ucs(z_ucs *z_ucs_output) {
     // // debug output (for now...)
@@ -370,12 +450,12 @@ void screen_output_z_ucs(z_ucs *z_ucs_output) {
         for (int i = 0; i < len; i++) {
             if (output[i] == '\n') {
                 // Take what we have and buffer it...
-                append_buffered(output, lineStart, i, true);
+                append_buffered(output, lineStart, i, currentFormat, true);
                 lineStart = i+1;
             }
         }
         if (lineStart < len) {
-            append_buffered(output, lineStart, len, false);
+            append_buffered(output, lineStart, len, currentFormat, false);
         }
         free(output);
     }
@@ -386,9 +466,9 @@ void screen_output_z_ucs(z_ucs *z_ucs_output) {
 int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
     trace(2, "%s, (*dest), %d, (*elapsedTenths)", single ? "true" : "false", max);
 
-    dump_unbuffered();
-    dump_buffered();
-    generate_buffered_output();
+    // dump_unbuffered();
+    // dump_buffered();
+    generate_json_output();
     erase_buffered_window();    // ???
 
     struct timeval start;
@@ -505,7 +585,9 @@ void screen_split_window(int16_t nof_lines) {
     // force-dump the current values.  This appears to be needed for
     // Graham Nelson's "Curses", for example, for the intro quote.
     if (nof_lines < unbufferedLines && unbufferedTouched) {
-        dump_unbuffered();
+        // dump_unbuffered();
+        // TODO: buffer the unbuffered lines!
+        buffer_unbuffered();
     }
 
     partial_erase_unbuffered_window(nof_lines);

@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
     fizmo_register_filesys_interface(&bot_filesys);
     fprintf(stderr, "registered filesys\n");
 
-    // fprintf(stderr, "bot_screen is: %d\n", (int)&bot_screen);
+    // fprintf(stderr, "bot_screen is: %p\n", &bot_screen);
     int r = fizmo_register_screen_interface(&bot_screen);
     fprintf(stderr, "register screen result: %d\n", r);
 

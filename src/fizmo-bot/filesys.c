@@ -307,7 +307,7 @@ z_dir* filesys_open_dir(char *dirname) {
 }
 
 int filesys_close_dir(z_dir *dirref) {
-    trace(1, "[%d]", (int)dirref);
+    trace(1, "[%p]", dirref);
 
     int result = -1;
 
@@ -326,7 +326,7 @@ int filesys_close_dir(z_dir *dirref) {
 }
 
 int filesys_read_dir(struct z_dir_ent *dir_ent, z_dir *dirref) {
-    trace(3, "[%d]", (int)dirref);
+    trace(3, "[%p]", dirref);
 
     if (!dirref || !dirref->dir_object) {
         tracex(1, "no dir, bailing");
