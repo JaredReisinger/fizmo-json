@@ -5,5 +5,5 @@
 bin_PROGRAMS = fizmo-bot
 fizmo_bot_SOURCES = fizmo-bot.c filesys.c screen.c util.c
 
-AM_CFLAGS = $(libfizmo_CFLAGS)
-LDADD = $(libfizmo_LIBS)
+AM_CFLAGS = $(libfizmo_CFLAGS) $(jansson_CFLAGS)
+LDADD = $(libfizmo_LIBS) $(jansson_LIBS)

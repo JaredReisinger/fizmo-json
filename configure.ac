@@ -21,8 +21,13 @@ AC_PROG_CC
 # AC_PROG_RANLIB
 
 AC_HEADER_STDC
+AC_HEADER_STDBOOL
+AC_HEADER_DIRENT
+AC_HEADER_TIME
+AC_CHECK_HEADERS([unistd.h])
 
 PKG_CHECK_MODULES([libfizmo], [libfizmo >= 0.7.15])
+PKG_CHECK_MODULES([jansson], [jansson >= 2.1.0])
 
 AC_CONFIG_HEADERS([src/fizmo-bot/config.h])
 AC_CONFIG_FILES([Makefile src/fizmo-bot/Makefile])

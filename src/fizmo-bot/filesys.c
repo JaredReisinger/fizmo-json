@@ -5,6 +5,10 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include <dirent.h>
+#include <unistd.h>
+
 #include "config.h"
 #include "util.h"
 
@@ -13,135 +17,346 @@
 
 
 z_file* filesys_openfile(char *filename, int filetype, int fileaccess) {
-    trace("%s, %d, %d", filename, filetype, fileaccess);
-    return NULL;
+    trace(1, "%s, %d, %d", filename, filetype, fileaccess);
+
+    z_file *result = malloc(sizeof(z_file));
+    if (!result) {
+        return NULL;
+    }
+
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        tracex(1, "open file failed");
+        return NULL;
+    }
+
+    tracex(1, "open file succeeded!");
+
+    // Use C99 anonymous literal to set the fields, because it also zeros any
+    // unmentioned fields!
+    *result = (z_file) {
+        .file_object = (void *)file,
+        .filename = strdup(filename),
+        .filetype = filetype,
+        .fileaccess = fileaccess,
+    };
+
+    return result;
 }
 
 int filesys_closefile(z_file *file_to_close) {
-    trace("%s", file_to_close ? file_to_close->filename : "(NULL)");
-    return 0;
+    trace(1, "%s", file_to_close ? file_to_close->filename : "(NULL)");
+
+    int result = -1;
+
+    if (file_to_close) {
+        if (file_to_close->file_object) {
+            result = fclose(file_to_close->file_object);
+        }
+        free(file_to_close->filename);
+        free(file_to_close);
+    }
+    return result;
 }
 
 // Returns -1 on EOF.
 int filesys_readchar(z_file *fileref) {
-    trace("%s", fileref ? fileref->filename : "(NULL)");
-    return 0;
+    trace(3, "%s", fileref ? fileref->filename : "(NULL)");
+    if (!fileref || !fileref->file_object) {
+        tracex(1, "no file, bailing");
+        return -1;
+    }
+
+    int ch = fgetc(fileref->file_object);
+    long pos = ftell(fileref->file_object);
+    tracex(3, "read % 3d '%c' (now at pos %d)", ch, ch > 20 ? (char)ch : '?', pos);
+
+    return ch;
 }
 
 // Returns number of bytes read.
 size_t filesys_readchars(void *ptr, size_t len, z_file *fileref) {
-    trace("%s", fileref ? fileref->filename : "(NULL)");
-    return 0;
+    trace(3, "%s, %d", fileref ? fileref->filename : "(NULL)", len);
+
+    if (!fileref || !fileref->file_object) {
+        tracex(1, "no file, bailing");
+        return -1;
+    }
+
+    size_t result = fread(ptr, 1, len, fileref->file_object);
+    tracex(3, "read %d bytes", result);
+
+    return result;
 }
 
 int filesys_writechar(int ch, z_file *fileref) {
-    trace("'%c', %s", ch, fileref ? fileref->filename : "(NULL)");
+    trace(1, "'%c', %s", ch, fileref ? fileref->filename : "(NULL)");
+
+    if (!fileref || !fileref->file_object) {
+        tracex(1, "no file, bailing");
+        return -1;
+    }
+
     return 0;
 }
 
 // Returns number of bytes successfully written.
 size_t filesys_writechars(void *ptr, size_t len, z_file *fileref) {
-    trace("%s", fileref ? fileref->filename : "(NULL)");
+    trace(1, "%s", fileref ? fileref->filename : "(NULL)");
+
+    if (!fileref || !fileref->file_object) {
+        tracex(1, "no file, bailing");
+        return -1;
+    }
+
     return 0;
 }
 
 int filesys_writestring(char *s, z_file *fileref) {
-    trace("\"%s\", %s", s, fileref ? fileref->filename : "(NULL)");
+    trace(1, "\"%s\", %s", s, fileref ? fileref->filename : "(NULL)");
+
+    if (!fileref || !fileref->file_object) {
+        tracex(1, "no file, bailing");
+        return -1;
+    }
+
     return 0;
 }
 
 int filesys_writeucsstring(z_ucs *s, z_file *fileref) {
-    trace("\"%s\", %s", (char*)s, fileref ? fileref->filename : "(NULL)");
+    trace(1, "\"%s\", %s", (char*)s, fileref ? fileref->filename : "(NULL)");
+
+    if (!fileref || !fileref->file_object) {
+        tracex(1, "no file, bailing");
+        return -1;
+    }
+
     return 0;
 }
 
 int filesys_fileprintf(z_file *fileref, char *format, ...) {
-    trace("%s", fileref ? fileref->filename : "(NULL)");
+    trace(1, "%s", fileref ? fileref->filename : "(NULL)");
+
+    if (!fileref || !fileref->file_object) {
+        tracex(1, "no file, bailing");
+        return -1;
+    }
+
     return 0;
 }
 
 int filesys_vfileprintf(z_file *fileref, char *format, va_list ap) {
-    trace("%s", fileref ? fileref->filename : "(NULL)");
+    trace(1, "%s", fileref ? fileref->filename : "(NULL)");
+
+    if (!fileref || !fileref->file_object) {
+        tracex(1, "no file, bailing");
+        return -1;
+    }
+
     return 0;
 }
 
 int filesys_filescanf(z_file *fileref, char *format, ...) {
-    trace("%s", fileref ? fileref->filename : "(NULL)");
+    trace(1, "%s", fileref ? fileref->filename : "(NULL)");
+
+    if (!fileref || !fileref->file_object) {
+        tracex(1, "no file, bailing");
+        return -1;
+    }
+
     return 0;
 }
 
 int filesys_vfilescanf(z_file *fileref, char *format, va_list ap) {
-    trace("%s", fileref ? fileref->filename : "(NULL)");
+    trace(1, "%s", fileref ? fileref->filename : "(NULL)");
+
+    if (!fileref || !fileref->file_object) {
+        tracex(1, "no file, bailing");
+        return -1;
+    }
+
     return 0;
 }
 
 long filesys_getfilepos(z_file *fileref) {
-    trace("%s", fileref ? fileref->filename : "(NULL)");
-    return 0;
+    trace(3, "%s", fileref ? fileref->filename : "(NULL)");
+
+    if (!fileref || !fileref->file_object) {
+        tracex(1, "no file, bailing");
+        return -1;
+    }
+
+    long result = ftell(fileref->file_object);
+    tracex(3, "tell returned %d", result);
+
+    return result;
 }
 
 int filesys_setfilepos(z_file *fileref, long seek, int whence) {
-    trace("%s, %d, %d", fileref ? fileref->filename : "(NULL)", seek, whence);
-    return 0;
+    trace(3, "%s, %d, %d", fileref ? fileref->filename : "(NULL)", seek, whence);
+
+    if (!fileref || !fileref->file_object) {
+        tracex(1, "no file, bailing");
+        return -1;
+    }
+
+    int result = fseek(fileref->file_object, seek, whence);
+    long pos = ftell(fileref->file_object);
+    tracex(3, "seek returned %d (now at pos %d)", result, pos);
+
+    return result;
 }
 
 int filesys_unreadchar(int c, z_file *fileref) {
-    trace("%s", fileref ? fileref->filename : "(NULL)");
-    return 0;
+    trace(3, "%s", fileref ? fileref->filename : "(NULL)");
+
+    if (!fileref || !fileref->file_object) {
+        tracex(1, "no file, bailing");
+        return -1;
+    }
+
+    int result = ungetc(c, fileref->file_object);
+    long pos = ftell(fileref->file_object);
+    tracex(3, "ungetc returned %d (now at pos %d)", result, pos);
+
+    return result;
 }
 
 int filesys_flushfile(z_file *fileref) {
-    trace("%s", fileref ? fileref->filename : "(NULL)");
-    return 0;
+    trace(1, "%s", fileref ? fileref->filename : "(NULL)");
+
+    if (!fileref || !fileref->file_object) {
+        tracex(1, "no file, bailing");
+        return -1;
+    }
+
+    int result = fflush(fileref->file_object);
+    tracex(1, "fflush returned %d", result);
+
+    return result;
 }
 
 time_t filesys_get_last_file_mod_timestamp(z_file *fileref) {
-    trace("%s", fileref ? fileref->filename : "(NULL)");
+    trace(1, "%s", fileref ? fileref->filename : "(NULL)");
+
+    if (!fileref || !fileref->file_object) {
+        tracex(1, "no file, bailing");
+        return -1;
+    }
+
     return 0;
 }
 
 int filesys_get_fileno(z_file *fileref) {
-    trace("%s", fileref ? fileref->filename : "(NULL)");
+    trace(1, "%s", fileref ? fileref->filename : "(NULL)");
+
+    if (!fileref || !fileref->file_object) {
+        tracex(1, "no file, bailing");
+        return -1;
+    }
+
     return 0;
 }
 
 FILE* filesys_get_stdio_stream(z_file *fileref) {
-    trace("%s", fileref ? fileref->filename : "(NULL)");
+    trace(1, "%s", fileref ? fileref->filename : "(NULL)");
+
+    if (!fileref || !fileref->file_object) {
+        tracex(1, "no file, bailing");
+        return NULL;
+    }
+
     return NULL;
 }
 
 char* filesys_get_cwd() {
-    trace("");
-    return NULL;
+    trace(2, "");
+
+    // DANGEROUS: assumes that the caller can (and will) call free() on the
+    // returned value.
+    char *result = getcwd(NULL, 0);
+    tracex(1, "getcwd returned %s", result);
+
+    return result;
 }
 
 int filesys_ch_dir(char *dirname) {
-    trace("%s", dirname);
+    trace(1, "%s", dirname);
     return 0;
 }
 
 z_dir* filesys_open_dir(char *dirname) {
-    trace("%s", dirname);
-    return NULL;
+    trace(1, "%s", dirname);
+
+    z_dir *result = malloc(sizeof(z_dir));
+    if (!result) {
+        return NULL;
+    }
+
+    DIR *dir = opendir(dirname);
+    if (!dir) {
+        tracex(1, "open dir failed");
+        return NULL;
+    }
+
+    tracex(1, "open dir succeeded!");
+
+    result->dir_object = dir;
+
+    return result;
 }
 
 int filesys_close_dir(z_dir *dirref) {
-    trace("[%d]", (int)dirref);
-    return 0;
+    trace(1, "[%d]", (int)dirref);
+
+    int result = -1;
+
+    if (!dirref) {
+        tracex(1, "no dir, bailing");
+        return -1;
+    }
+
+    if (dirref->dir_object) {
+        result = closedir(dirref->dir_object);
+    }
+
+    free(dirref);
+
+    return result;
 }
 
 int filesys_read_dir(struct z_dir_ent *dir_ent, z_dir *dirref) {
-    trace("[%d]", (int)dirref);
+    trace(3, "[%d]", (int)dirref);
+
+    if (!dirref || !dirref->dir_object) {
+        tracex(1, "no dir, bailing");
+        return -1;
+    }
+
+    struct dirent *entry = readdir(dirref->dir_object);
+
+    if (!entry) {
+        tracex(1, "end of directory (or error)");
+        return -1;
+    }
+
+    // DANGEROUS! The z_dir_ent struct keeps a "live" pointer to the
+    // underlying directory entry, rather than its own buffer.  That means
+    // it requires the memory to stay intact (presumably until close_dir is
+    // called), and it's never explicitly free()d.
+    dir_ent->d_name = entry->d_name;
+    tracex(1, "dir entry: %s", dir_ent->d_name);
+
     return 0;
 }
 
 int filesys_make_dir(char *path) {
-    trace("%s", path);
+    trace(1, "%s", path);
     return 0;
 }
 
 bool filesys_is_filename_directory(char *filename) {
-    trace("%s", filename);
+    trace(1, "%s", filename);
     return false;
 }
 
