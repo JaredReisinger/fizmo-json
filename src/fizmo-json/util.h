@@ -1,6 +1,6 @@
 // util.h
 //
-// This file is part of fizmo-bot.  Please see LICENSE.md for the license.
+// This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
 #ifndef FIZMO_BOT_UTIL_H
 #define FIZMO_BOT_UTIL_H

@@ -1,6 +1,6 @@
 // screen.c
 //
-// This file is part of fizmo-bot.  Please see LICENSE.md for the license.
+// This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
 #include <stdio.h>
 #include <ctype.h>
@@ -139,6 +139,7 @@ void generate_json_output() {
 
     fprintf(stdout, "\e[38;5;6m%s\e[0m\n", str);
     free(str);
+    fflush(stdout);
 }
 
 

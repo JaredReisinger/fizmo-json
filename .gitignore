@@ -9,9 +9,9 @@ configure
 config.log
 config.status
 Makefile
-src/fizmo-bot/config.h.in
-src/fizmo-bot/config.h
-src/fizmo-bot/stamp-h1
+src/fizmo-json/config.h.in
+src/fizmo-json/config.h
+src/fizmo-json/stamp-h1
 *~
 
 ## make...
@@ -19,4 +19,4 @@ src/fizmo-bot/stamp-h1
 #*.a
 *.o
 
-src/fizmo-bot/fizmo-bot
+src/fizmo-json/fizmo-json

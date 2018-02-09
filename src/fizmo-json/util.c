@@ -1,6 +1,6 @@
 // util.c
 //
-// This file is part of fizmo-bot.  Please see LICENSE.md for the license.
+// This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
 
 #include <stdlib.h>
@@ -14,7 +14,7 @@
 //     fprintf(stderr, "%s\n", msg);
 // }
 
-const int trace_level = 0;
+const int trace_level = 1;
 
 
 void trace_impl(int level, bool funcentry, const char *funcname, const char *filename, int line, const char *fmt, ...) {
