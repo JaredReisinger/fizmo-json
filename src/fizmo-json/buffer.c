@@ -2,37 +2,79 @@
 //
 // This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
-// jansson...
+#include <interpreter/fizmo.h>
 #include <jansson.h>
 
 #include "screen.h"
+#include "buffer.h"
 #include "format.h"
 #include "util.h"
 
 
+typedef struct line_buffer {
+    int capacity;
+    int nextLine;
+    formatted_text **lines;
+} line_buffer;
 
-// For now, we keep a very cheap array of lines, with a hard-coded upper bound.
-formatted_text* bufferedWindow[SCREEN_HEIGHT] = { NULL };
-int bufferedLines = 0;
 
-
-void erase_buffered_window() {
-    for (int l = 0; l < SCREEN_HEIGHT; l++) {
-        free_formatted_text(bufferedWindow[l]);
-    }
-    memset(bufferedWindow, 0, sizeof(formatted_text*) * SCREEN_HEIGHT);
-    bufferedLines = 0;
+LINEBUF *create_line_buffer() {
+    trace(2, "");
+    line_buffer *lb = fizmo_malloc(sizeof(line_buffer));
+    // memset(lb, 0, sizeof(line_buffer));
+    *lb = (line_buffer){ .capacity = 0, .nextLine = 0 };
+    tracex(2, "created %p", lb);
+    return (LINEBUF*)lb;
 }
 
-void append_buffered(char *src, int start, int end, format_info format, bool advance) {
-    trace(3, "(src), %d, %d, %s", start, end, advance ? "true" : "false");
+void free_line_buffer(LINEBUF **buf) {
+    trace(2, "%p", *buf);
+
+    if (buf == NULL || *buf == NULL) {
+        return;
+    }
+
+    line_buffer *lb = (line_buffer *)(*buf);
+
+    for (int l = 0; l < lb->capacity; l++) {
+        free_formatted_text(lb->lines[l]);
+    }
+
+    free(lb->lines);
+    free(lb);
+    *buf = NULL;
+}
+
+void grow_line_buffer(line_buffer *lb) {
+    trace(2, "%p", lb);
+    int capacity = lb->capacity * 2;
+    if (capacity == 0) {
+        capacity = 10;
+    }
+
+    formatted_text **lines = fizmo_realloc(lb->lines, sizeof(formatted_text *) * capacity);
+    if (lines != NULL) {
+        memset(&lines[lb->capacity], 0, sizeof(formatted_text *) * (capacity - lb->capacity));
+        lb->lines = lines;
+        lb->capacity = capacity;
+    }
+}
+
+void line_buffer_append(LINEBUF *buf, const char *src, int start, int end, format_info format, bool advance) {
+    trace(2, "%p, (src), %d, %d, %s", buf, start, end, advance ? "true" : "false");
+
+    line_buffer *lb = (line_buffer *)buf;
+
+    while (lb->nextLine >= lb->capacity) {
+        grow_line_buffer(lb);
+    }
 
     if (end-start > 0) {
-        if (bufferedWindow[bufferedLines] == NULL) {
+        if (lb->lines[lb->nextLine] == NULL) {
             tracex(3, "starting new line");
-            bufferedWindow[bufferedLines] = new_text(src, start, end, format);
+            lb->lines[lb->nextLine] = new_text(src, start, end, format);
         } else {
-            formatted_text *cur = bufferedWindow[bufferedLines];
+            formatted_text *cur = lb->lines[lb->nextLine];
             tracex(3, "appending to existing line (%p)", cur);
             while (cur->next != NULL) {
                 cur = cur->next;
@@ -54,9 +96,46 @@ void append_buffered(char *src, int start, int end, format_info format, bool adv
 
     if (advance) {
         tracex(3, "advancing line");
-        bufferedLines++;
+        lb->nextLine++;
     }
 }
+
+void line_buffer_prepend_and_free(LINEBUF* buf, LINEBUF** prepend) {
+    trace(1, "%p, %p", buf, *prepend);
+    line_buffer *lb = (line_buffer *)buf;
+    line_buffer *pre = (line_buffer *)(*prepend);
+
+    tracex(3, "%p (%d / %d) <- %p (%d / %d)", lb, lb->nextLine, lb->capacity, pre, pre->nextLine, pre->capacity);
+
+    int shift = pre->nextLine;
+    if (shift < pre->capacity && pre->lines[shift] != NULL) {
+        tracex(3, "increasing shift!");
+        shift++;
+    }
+
+    tracex(2, "prepending %d lines to existing %d...", shift, lb->nextLine);
+
+    size_t existing_size = sizeof(formatted_text *) * lb->capacity;
+    size_t shift_size = sizeof(formatted_text *) * shift;
+
+    while (lb->capacity <= shift + lb->nextLine) {
+        grow_line_buffer(lb);
+    }
+
+    // shift existing lines down
+    tracex(3, "shifting existing: %p by %d", lb, shift);
+    memmove(&lb->lines[shift], &lb->lines[0], existing_size);
+    memset(&lb->lines[0], 0, shift_size);
+    lb->nextLine += shift;
+
+    // copy lines from "pre", and free it
+    tracex(3, "prepending: %p (length %d) -> %p", pre, shift, lb);
+    memcpy(&lb->lines[0], &pre->lines[0], shift_size);
+    memset(&pre->lines[0], 0, shift_size);
+    free_line_buffer(prepend);
+    tracex(3, "prepend buffer is now %p", *prepend);
+}
+
 
 void set_optional_bool(json_t *obj, char *name, bool value) {
     if (value) {
@@ -64,16 +143,18 @@ void set_optional_bool(json_t *obj, char *name, bool value) {
     }
 }
 
-json_t* generate_buffered_json() {
-    trace(1, "");
+json_t* line_buffer_generate_json(LINEBUF* buf) {
+    trace(1, "%p", buf);
 
-    // Collect story lines (buffered window)...
+    line_buffer *lb = (line_buffer *)buf;
+    tracex(2, "linebuf %p capacity: %d, %d(?)", lb, lb->capacity, lb->nextLine);
+
     json_t* lines = json_array();
 
-    for (int l = 0; l < bufferedLines+1; l++) {
+    for (int l = 0; l < lb->nextLine+1; l++) {
         json_t* line;
 
-        formatted_text *text = bufferedWindow[l];
+        formatted_text *text = lb->lines[l];
 
         if (!text) {
             line = json_null();
@@ -97,27 +178,4 @@ json_t* generate_buffered_json() {
     }
 
     return lines;
-}
-
-
-void dump_formatted_text(formatted_text *text) {
-    if (text == NULL) {
-        return;
-    }
-    fprintf(stderr, "\e[38;5;70m%s%s%s%s\e[0m",
-        text->format.style & Z_STYLE_REVERSE_VIDEO ? "\e[7m" : "",
-        text->format.style & Z_STYLE_BOLD ? "\e[1m" : "",
-        text->format.style & Z_STYLE_ITALIC ? "\e[4m" : "",
-        text->str);
-    dump_formatted_text(text->next);
-}
-
-
-void dump_buffered() {
-    fprintf(stderr, "\e[38;5;12mbuffered window (%d-ish lines):\e[0m\n", bufferedLines);
-    // +1 for any trailing line (NULL is ignored)...
-    for (int l = 0; l < bufferedLines+1; l++) {
-        dump_formatted_text(bufferedWindow[l]);
-        fprintf(stderr, "\n");
-    }
 }

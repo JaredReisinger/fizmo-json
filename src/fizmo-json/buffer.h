@@ -8,19 +8,16 @@
 // jansson...
 #include <jansson.h>
 
-#include "format.h"
+typedef struct {} LINEBUF;
 
-// Because of the interaction between the story and status windows (buffered
-// and unbuffered areas), we manage them *both* in buffer.h/buffer.c.
+extern LINEBUF *create_line_buffer();
+extern void free_line_buffer(LINEBUF **buf);
 
-extern void erase_buffered_window();
-extern void append_buffered(char *src, int start, int end, format_info format, bool advance);
-extern json_t* generate_buffered_json();
+extern void line_buffer_append(LINEBUF *buf, const char *src, int start, int end, format_info format, bool advance);
 
-extern void dump_buffered();
+extern void line_buffer_prepend_and_free(LINEBUF* buf, LINEBUF** prepend);
 
+extern json_t* line_buffer_generate_json(LINEBUF* buf);
 
-// ... also... we don't need to manage the unbuffered part, since fizmo has
-// BLOCKBUF which we can leverage...
 
 #endif // FIZMO_JSON_BUFFER_H

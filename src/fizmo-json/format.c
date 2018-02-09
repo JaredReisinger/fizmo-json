@@ -8,6 +8,7 @@
 // const formatted_char empty_char = (formatted_char){ };
 
 #include "format.h"
+#include "util.h"
 
 bool format_equal(format_info a, format_info b) {
     return a.style == b.style;
@@ -19,7 +20,8 @@ bool blockbuf_format_equal(const struct blockbuf_char *a, const struct blockbuf_
 }
 
 
-formatted_text *new_text(char *src, int start, int end, format_info format) {
+formatted_text *new_text(const char *src, int start, int end, format_info format) {
+    trace(3, "");
     formatted_text *text = fizmo_malloc(sizeof(formatted_text));
     memset(text, 0, sizeof(formatted_text));
     text->format = format;
@@ -28,6 +30,8 @@ formatted_text *new_text(char *src, int start, int end, format_info format) {
 }
 
 void free_formatted_text(formatted_text *text) {
+    trace(3, "%p", text);
+
     if (text == NULL) {
         return;
     }

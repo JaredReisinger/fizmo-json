@@ -24,4 +24,7 @@
 
 extern struct z_screen_interface bot_screen;
 
+extern void screen_use_console_input();
+
+
 #endif // FIZMO_JSON_SCREEN_H

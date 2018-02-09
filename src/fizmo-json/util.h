@@ -14,4 +14,6 @@
 
 extern void trace_impl(int level, bool funcentry, const char *funcname, const char *filename, int line, const char *fmt, ...);
 
+extern void set_trace_level(int trace_level);
+
 #endif // FIZMO_JSON_UTIL_H

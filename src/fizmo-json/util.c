@@ -14,11 +14,11 @@
 //     fprintf(stderr, "%s\n", msg);
 // }
 
-const int trace_level = 1;
+static int current_trace_level = 0;
 
 
 void trace_impl(int level, bool funcentry, const char *funcname, const char *filename, int line, const char *fmt, ...) {
-    if (level > trace_level) {
+    if (level > current_trace_level) {
         return;
     }
 
@@ -40,4 +40,9 @@ void trace_impl(int level, bool funcentry, const char *funcname, const char *fil
 
     free(message);
     free(formatted);
+}
+
+void set_trace_level(int trace_level) {
+    current_trace_level = trace_level;
+    // tracex(1, "trace level set to %d", trace_level);
 }

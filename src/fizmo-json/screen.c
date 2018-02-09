@@ -28,6 +28,14 @@ const int STATUS_WINDOW = 1;
 
 int currentWindow = STORY_WINDOW;
 
+static bool use_console_input = false;
+
+void screen_use_console_input() {
+    trace(1, "");
+    use_console_input = true;
+}
+
+
 // The BLOCKBUF tracked by fizmo *never* shrinks (for performance and other
 // reasons), but we need to know the intended size when rendering output.
 int upper_window_actual_height = 0;
@@ -36,17 +44,19 @@ struct blockbuf_char *blockbuf_char_at_yx(BLOCKBUF *bb, int ypos, int xpos) {
     return &bb->content[(ypos * bb->width) + xpos];
 }
 
+LINEBUF *screen_linebuf = NULL;
 
 // We sometimes see the upper window used to provide "popup" text, as opposed to
 // status text... so we need to make it look like buffered text so that it shows
 // up reasonably.
-void buffer_upper_window() {
+LINEBUF* buffer_upper_window() {
     trace(1, "");
+
+    LINEBUF *lb = create_line_buffer();
 
     char buf[upper_window_buffer->width+1];
     int buflen = 0;
 
-    // Should we "insert" this before any existing buffered lines?
     for (int l = 0; l < upper_window_actual_height; l++) {
         // work right-to-left to find the last non-empty position...
         int end;
@@ -76,7 +86,7 @@ void buffer_upper_window() {
                 // format boundary!
                 buf[buflen] = '\0';
                 // tracex(1, "appending line %d (1) \"%s\"", l, buf);
-                append_buffered(buf, 0, buflen, (format_info){.style=bbchFormat->style}, false);
+                line_buffer_append(lb, buf, 0, buflen, (format_info){.style=bbchFormat->style}, false);
                 buf[0] = zucs_char_to_latin1_char(bbch->character);
                 buflen = 1;
                 bbchFormat = bbch;
@@ -87,10 +97,12 @@ void buffer_upper_window() {
         // any trailing text...
         buf[buflen] = '\0';
         // tracex(1, "appending line %d (2) \"%s\"", l, buf);
-        append_buffered(buf, 0, buflen, (format_info){.style=bbchFormat->style}, true);
+        line_buffer_append(lb, buf, 0, buflen, (format_info){.style=bbchFormat->style}, true);
         buflen = 0;
         // tracex(1, "finished line: %d", l);
     }
+
+    return lb;
 }
 
 // Generate a JSON object for the output...
@@ -100,36 +112,36 @@ void generate_json_output() {
     // Collect status (unbuffered window)
     json_t* status = json_array();
 
-    for (int l = 0; l < upper_window_actual_height; l++) {
-        char buf[upper_window_buffer->width+1];
-        int buflen = 0;
-
-        struct blockbuf_char *bbchFormat = blockbuf_char_at_yx(upper_window_buffer, 0, 0);
-
-        for (int c = 0; c < upper_window_buffer->width; c++) {
-            struct blockbuf_char *bbch = blockbuf_char_at_yx(upper_window_buffer, l, c);
-
-            if (blockbuf_format_equal(bbch, bbchFormat)) {
-                buf[buflen++] = zucs_char_to_latin1_char(bbch->character);
-            } else {
-                // format boundary!
-                buf[buflen] = '\0';
-                json_array_append_new(status, json_string(buf));
-                buf[0] = zucs_char_to_latin1_char(bbch->character);
-                buflen = 1;
-                bbchFormat = bbch;
-            }
-        }
-
-        // any trailing text...
-        if (buflen > 0) {
-            buf[buflen] = '\0';
-            json_array_append_new(status, json_string(buf));
-        }
-    }
+    // for (int l = 0; l < upper_window_actual_height; l++) {
+    //     char buf[upper_window_buffer->width+1];
+    //     int buflen = 0;
+    //
+    //     struct blockbuf_char *bbchFormat = blockbuf_char_at_yx(upper_window_buffer, 0, 0);
+    //
+    //     for (int c = 0; c < upper_window_buffer->width; c++) {
+    //         struct blockbuf_char *bbch = blockbuf_char_at_yx(upper_window_buffer, l, c);
+    //
+    //         if (blockbuf_format_equal(bbch, bbchFormat)) {
+    //             buf[buflen++] = zucs_char_to_latin1_char(bbch->character);
+    //         } else {
+    //             // format boundary!
+    //             buf[buflen] = '\0';
+    //             json_array_append_new(status, json_string(buf));
+    //             buf[0] = zucs_char_to_latin1_char(bbch->character);
+    //             buflen = 1;
+    //             bbchFormat = bbch;
+    //         }
+    //     }
+    //
+    //     // any trailing text...
+    //     if (buflen > 0) {
+    //         buf[buflen] = '\0';
+    //         json_array_append_new(status, json_string(buf));
+    //     }
+    // }
 
     // Collect story lines (buffered window)...
-    json_t* story = generate_buffered_json();
+    json_t* story = line_buffer_generate_json(screen_linebuf);
 
     json_t* output = json_object();
     json_object_set_new(output, "status", status);
@@ -137,7 +149,7 @@ void generate_json_output() {
     char *str = json_dumps(output, JSON_INDENT(2));
     json_decref(output);
 
-    fprintf(stdout, "\e[38;5;6m%s\e[0m\n", str);
+    fprintf(stdout, "%s\n", str);
     free(str);
     fflush(stdout);
 }
@@ -240,6 +252,10 @@ void screen_output_z_ucs(z_ucs *z_ucs_output) {
         return;
     }
 
+    if (screen_linebuf == NULL) {
+        screen_linebuf = create_line_buffer();
+    }
+
     // Start outputting where we left off... break the output into lines (TBD)
     char *output = dup_zucs_string_to_utf8_string(z_ucs_output);
     int lineStart = 0;
@@ -247,12 +263,12 @@ void screen_output_z_ucs(z_ucs *z_ucs_output) {
     for (int i = 0; i < len; i++) {
         if (output[i] == '\n') {
             // Take what we have and buffer it...
-            append_buffered(output, lineStart, i, currentFormat, true);
+            line_buffer_append(screen_linebuf, output, lineStart, i, currentFormat, true);
             lineStart = i+1;
         }
     }
     if (lineStart < len) {
-        append_buffered(output, lineStart, len, currentFormat, false);
+        line_buffer_append(screen_linebuf, output, lineStart, len, currentFormat, false);
     }
     free(output);
 }
@@ -264,7 +280,8 @@ int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
     // dump_upper_window();
     // dump_buffered();
     generate_json_output();
-    erase_buffered_window();    // ???
+    // erase_buffered_window();    // ???
+    free_line_buffer(&screen_linebuf);
 
     struct timeval start;
     struct timeval end;
@@ -272,37 +289,35 @@ int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
 
     fprintf(stderr, "\n\e[38;5;13mwaiting to read%s...\e[0m\n", single ? " (single character only!)": "");
 
-    json_error_t error;
-    json_t *input = json_loadf(stdin, JSON_DISABLE_EOF_CHECK, &error);
-    if (!input) {
-        fprintf(stderr, "ERROR with input, line %d, column %d (position %d): %s (%s)\n", error.line, error.column, error.position, error.text, error.source);
-        return -1;
-    }
-
-    // What did we get?
-    if (!json_is_object(input)) {
-        fprintf(stderr, "ERROR: expected object!");
-        json_decref(input);
-        return -1;
-    }
-
     // Extract input string...
     char buf[1000];
-    // memset(buf, 0, 1000);   // need sizeof/countof?
     buf[0] = '\0';
-    const char *value = json_string_value(json_object_get(input, "input"));
-    strlcpy(buf, value, 1000);
 
-    json_decref(input);
+    if (!use_console_input) {
+        json_error_t error;
+        json_t *input = json_loadf(stdin, JSON_DISABLE_EOF_CHECK, &error);
+        if (!input) {
+            fprintf(stderr, "ERROR with input, line %d, column %d (position %d): %s (%s)\n", error.line, error.column, error.position, error.text, error.source);
+            return -1;
+        }
 
-    // char buf[1000];
-    // memset(buf, 0, 1000);   // need sizeof/countof?
-    // char * str = fgets(buf, 1000, stdin);
-    //
-    // if (!str) {
-    //     tracex(1, "error reading line");
-    //     return -1;
-    // }
+        // What did we get?
+        if (!json_is_object(input)) {
+            fprintf(stderr, "ERROR: expected object!");
+            json_decref(input);
+            return -1;
+        }
+
+        const char *value = json_string_value(json_object_get(input, "input"));
+        strlcpy(buf, value, 1000);
+        json_decref(input);
+    } else {
+        char * str = fgets(buf, 1000, stdin);
+        if (!str) {
+            tracex(1, "error reading line");
+            return -1;
+        }
+    }
 
     n = gettimeofday(&end, NULL); // do we care about failed calls?
 
@@ -397,8 +412,16 @@ void screen_split_window(int16_t nof_lines) {
     // If we're shrinking it, force-dump the current values.  This appears to be
     // needed for Graham Nelson's "Curses", for example, for the intro quote.
     if (nof_lines < upper_window_actual_height) {
+        tracex(1, "prepending upper window!");
         // dump_upper_window();
-        buffer_upper_window();
+        LINEBUF *lb = buffer_upper_window();
+
+        if (screen_linebuf == NULL) {
+            screen_linebuf = lb;
+        } else {
+            line_buffer_prepend_and_free(screen_linebuf, &lb);
+            tracex(1, "screen_linebuf is %p", screen_linebuf);
+        }
     }
 
     upper_window_actual_height = nof_lines;
@@ -423,7 +446,8 @@ void screen_erase_window(int16_t window_number) {
         return;
     }
 
-    erase_buffered_window();
+    // erase_buffered_window();
+    free_line_buffer(&screen_linebuf);
 }
 
 void screen_set_cursor(int16_t line, int16_t column, int16_t window) {

@@ -36,7 +36,7 @@ extern bool format_equal(format_info a, format_info b);
 
 extern bool blockbuf_format_equal(const struct blockbuf_char *a, const struct blockbuf_char *b);
 
-extern formatted_text *new_text(char *src, int start, int end, format_info format);
+extern formatted_text *new_text(const char *src, int start, int end, format_info format);
 
 extern void free_formatted_text(formatted_text *text);
 
