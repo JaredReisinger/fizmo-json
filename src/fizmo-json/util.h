@@ -2,8 +2,8 @@
 //
 // This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
-#ifndef FIZMO_BOT_UTIL_H
-#define FIZMO_BOT_UTIL_H
+#ifndef FIZMO_JSON_UTIL_H
+#define FIZMO_JSON_UTIL_H
 
 // extern void dbg(const char *msg);
 
@@ -14,4 +14,4 @@
 
 extern void trace_impl(int level, bool funcentry, const char *funcname, const char *filename, int line, const char *fmt, ...);
 
-#endif // FIZMO_BOT_UTIL_H
+#endif // FIZMO_JSON_UTIL_H

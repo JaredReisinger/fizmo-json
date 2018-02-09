@@ -2,8 +2,8 @@
 //
 // This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
-#ifndef FIZMO_BOT_BUFFER_H
-#define FIZMO_BOT_BUFFER_H
+#ifndef FIZMO_JSON_BUFFER_H
+#define FIZMO_JSON_BUFFER_H
 
 // jansson...
 #include <jansson.h>
@@ -23,4 +23,4 @@ extern void dump_buffered();
 // ... also... we don't need to manage the unbuffered part, since fizmo has
 // BLOCKBUF which we can leverage...
 
-#endif // FIZMO_BOT_BUFFER_H
+#endif // FIZMO_JSON_BUFFER_H

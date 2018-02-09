@@ -2,8 +2,8 @@
 //
 // This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
-#ifndef FIZMO_BOT_FORMAT_H
-#define FIZMO_BOT_FORMAT_H
+#ifndef FIZMO_JSON_FORMAT_H
+#define FIZMO_JSON_FORMAT_H
 
 // fizmo includes...
 // #include <interpreter/fizmo.h>
@@ -40,4 +40,4 @@ extern formatted_text *new_text(char *src, int start, int end, format_info forma
 
 extern void free_formatted_text(formatted_text *text);
 
-#endif // FIZMO_BOT_FORMAT_H
+#endif // FIZMO_JSON_FORMAT_H

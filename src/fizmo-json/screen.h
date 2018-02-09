@@ -1,5 +1,5 @@
-#ifndef FIZMO_BOT_SCREEN_H
-#define FIZMO_BOT_SCREEN_H
+#ifndef FIZMO_JSON_SCREEN_H
+#define FIZMO_JSON_SCREEN_H
 
 // The standard Z-machine, Glk, and fizmo models of the screen all assume a
 // fixed-size, rectangular buffer... but while that's useful for the status
@@ -24,4 +24,4 @@
 
 extern struct z_screen_interface bot_screen;
 
-#endif // FIZMO_BOT_SCREEN_H
+#endif // FIZMO_JSON_SCREEN_H
