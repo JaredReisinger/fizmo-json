@@ -7,231 +7,89 @@
 #include <string.h>
 #include <sys/time.h>
 
-#include "config.h"
-#include "util.h"
-
 // fizmo includes...
 #include <interpreter/fizmo.h>
+#include <interpreter/streams.h>
 #include <tools/z_ucs.h>
 
 // jansson...
 #include <jansson.h>
 
-
-// The standard Z-machine, Glk, and fizmo models of the screen all assume a
-// fixed-size, rectangular buffer... but while that's useful for the status
-// window, it actually complicates the regular, buffered story window.  To that
-// end, we track the buffered and unbuffered variations completely separately.
-//
-// The buffered text is treated much like HTML, with block (line), and span
-// flow.  Its content is *never* placed into the unbuffered grid, under the
-// assumption that no game would explicitly set the cursor into the midst of a
-// buffered run in order to update the text.
-//
-// A full-screen-sized unbuffered window is tracked purely for the purposes of
-// capturing the status line(s), and/or any explicitly layed-out text (like the
-// quote in the beginning of Graham Nelson's "Curses").  We use a screen size
-// of 100x255: 100 characters wide allows us to easily infer left/center/right
-// alignment, and 255 lines is, as per the Z-machine spec section 8.4.1,
-// "infinte height".
-const int SCREEN_WIDTH  = 100;
-const int SCREEN_HEIGHT = 255;
-
-typedef struct {
-    // color and font are ignored for now...
-    z_style style;
-} format_info;
-
-// const format_info DEFAULT_FORMAT = (format_info){ .style = Z_STYLE_ROMAN };
-#define DEFAULT_FORMAT (format_info){ .style = Z_STYLE_ROMAN }
-
-
-typedef struct {
-    format_info format;
-    int ch;
-} formatted_char;
-
-typedef struct formatted_text {
-    format_info format;
-    char *str;
-    struct formatted_text *next;
-} formatted_text;
-
-const formatted_char empty_char = (formatted_char){ };
+#include "screen.h"
+#include "config.h"
+#include "util.h"
+#include "buffer.h"
+#include "format.h"
 
 format_info currentFormat = DEFAULT_FORMAT;
-
-bool format_equal(format_info a, format_info b) {
-    return a.style == b.style;
-}
-
-formatted_char unbufferedWindow[SCREEN_HEIGHT][SCREEN_WIDTH];
-
-int unbufferedLines = 0;
-int unbufferedLine = 0;
-int unbufferedCol = 0;
-bool unbufferedTouched = false;
-
-// For now, we keep a very cheap array of lines, with a hard-coded upper bound.
-formatted_text* bufferedWindow[SCREEN_HEIGHT] = { NULL };
-int bufferedLines = 0;
 
 const int STORY_WINDOW = 0;
 const int STATUS_WINDOW = 1;
 
 int currentWindow = STORY_WINDOW;
 
-void partial_erase_unbuffered_window(int as_of_line) {
-    // We have conveniently defined formatted_char such that a zero-filled
-    // structure is the default "empty" value, so we don't have to loop to erase
-    // the window... we just zero it out.
-    memset(&unbufferedWindow[as_of_line], 0, sizeof(formatted_char) * (SCREEN_HEIGHT - as_of_line) * SCREEN_WIDTH);
-}
+// The BLOCKBUF tracked by fizmo *never* shrinks (for performance and other
+// reasons), but we need to know the intended size when rendering output.
+int upper_window_actual_height = 0;
 
-void erase_unbuffered_window() {
-    // // We have conveniently defined formatted_char such that a zero-filled
-    // // structure is the default "empty" value, so we don't have to loop to erase
-    // // the window... we just zero it out.
-    // memset(unbufferedWindow, 0, sizeof(formatted_char) * SCREEN_HEIGHT * SCREEN_WIDTH);
-    partial_erase_unbuffered_window(0);
-}
-
-void free_formatted_text(formatted_text *text) {
-    if (text == NULL) {
-        return;
-    }
-
-    free_formatted_text(text->next);
-
-    // From the man page for free(3): "If ptr is a NULL pointer, no
-    // operation is performed".
-    free(text->str);
-    free(text);
-}
-
-void erase_buffered_window() {
-    for (int l = 0; l < SCREEN_HEIGHT; l++) {
-        free_formatted_text(bufferedWindow[l]);
-    }
-    memset(bufferedWindow, 0, sizeof(formatted_text*) * SCREEN_HEIGHT);
-    bufferedLines = 0;
-}
-
-void dump_unbuffered() {
-    fprintf(stderr, "\e[38;5;81munbuffered window (%d lines):\e[0m\n", unbufferedLines);
-
-    int escapedLength = (SCREEN_WIDTH * 100) + 1;
-    char line[escapedLength];
-    char escaped[SCREEN_WIDTH * 100];
-
-    for (int l = 0; l < unbufferedLines; l++) {
-        memset(line, 0, escapedLength);
-
-        for (int c = 0; c < SCREEN_WIDTH; c++) {
-            formatted_char *fc = &unbufferedWindow[l][c];
-            if (fc->ch == 0) {
-                strlcat(line, "\e[38;5;255m-\e[0m", escapedLength);
-                continue;
-            }
-
-            sprintf(escaped, "%s%s%s%c\e[0m",
-                fc->format.style & Z_STYLE_REVERSE_VIDEO ? "\e[7m" : "",
-                fc->format.style & Z_STYLE_BOLD ? "\e[1m" : "",
-                fc->format.style & Z_STYLE_ITALIC ? "\e[4m" : "",
-                fc->ch);
-            strlcat(line, escaped, escapedLength);
-        }
-        fprintf(stderr, "\e[38;5;81m|\e[0m%s\n", line);
-    }
-
-    unbufferedTouched = false;
-}
-
-formatted_text *new_text(char *src, int start, int end, format_info format) {
-    formatted_text *text = calloc(sizeof(formatted_text), 1);
-    text->format = format;
-    text->str = strndup(&src[start], end-start);
-    return text;
-}
-
-void append_buffered(char *src, int start, int end, format_info format, bool advance) {
-    trace(3, "(src), %d, %d, %s", start, end, advance ? "true" : "false");
-
-    if (end-start > 0) {
-        if (bufferedWindow[bufferedLines] == NULL) {
-            tracex(3, "starting new line");
-            bufferedWindow[bufferedLines] = new_text(src, start, end, format);
-        } else {
-            formatted_text *cur = bufferedWindow[bufferedLines];
-            tracex(3, "appending to existing line (%p)", cur);
-            while (cur->next != NULL) {
-                cur = cur->next;
-                tracex(3, "walking... (%p)", cur);
-            }
-
-            // We'll either add a new formatted_text as 'next', or, if the
-            // formatting hasn't changed, simply append it to the current one.
-            if (format_equal(format, cur->format)) {
-                char *str;
-                asprintf(&str, "%s%.*s", cur->str, end-start, &src[start]);
-                free(cur->str);
-                cur->str = str;
-            } else {
-                cur->next = new_text(src, start, end, format);
-            }
-        }
-    }
-
-    if (advance) {
-        tracex(3, "advancing line");
-        bufferedLines++;
-    }
+struct blockbuf_char *blockbuf_char_at_yx(BLOCKBUF *bb, int ypos, int xpos) {
+    return &bb->content[(ypos * bb->width) + xpos];
 }
 
 
-// We sometimes see the unbuffered window used to provide "popup" text, as
-// opposed to status text... so we need to make it look like buffered text so
-// that it shows up reasonably.
-void buffer_unbuffered() {
+// We sometimes see the upper window used to provide "popup" text, as opposed to
+// status text... so we need to make it look like buffered text so that it shows
+// up reasonably.
+void buffer_upper_window() {
     trace(1, "");
 
-    // Should we "insert" this before any existing buffered lines?
-    for (int l = 0; l < unbufferedLines; l++) {
-        char buf[SCREEN_WIDTH+1];
-        int buflen = 0;
-        format_info format = unbufferedWindow[l][0].format;
+    char buf[upper_window_buffer->width+1];
+    int buflen = 0;
 
+    // Should we "insert" this before any existing buffered lines?
+    for (int l = 0; l < upper_window_actual_height; l++) {
         // work right-to-left to find the last non-empty position...
         int end;
-        for (end = SCREEN_WIDTH; end >= 0; end--) {
-            if (unbufferedWindow[l][end].ch != 0) {
-                end++;
+        for (end = upper_window_buffer->width - 1; end >= 0; end--) {
+            struct blockbuf_char *bbch = blockbuf_char_at_yx(upper_window_buffer, l, end);
+            if (bbch->character != Z_UCS_SPACE ||
+                bbch->font != upper_window_buffer->default_font ||
+                bbch->style != upper_window_buffer->default_style ||
+                bbch->foreground_colour != upper_window_buffer->default_foreground_colour ||
+                bbch->background_colour != upper_window_buffer->default_background_colour ) {
                 break;
             }
         }
 
+        end++;
+
+        // tracex(1, "found line %d end: %d", l, end);
+
+        struct blockbuf_char *bbchFormat = blockbuf_char_at_yx(upper_window_buffer, l, 0);
+
         for (int c = 0; c < end; c++) {
-            formatted_char *fc = &unbufferedWindow[l][c];
-            if (format_equal(fc->format, format)) {
-                buf[buflen++] = fc->ch ? fc->ch : ' ';
+            struct blockbuf_char *bbch = blockbuf_char_at_yx(upper_window_buffer, l, c);
+
+            if (blockbuf_format_equal(bbch, bbchFormat)) {
+                buf[buflen++] = zucs_char_to_latin1_char(bbch->character);
             } else {
                 // format boundary!
                 buf[buflen] = '\0';
-                append_buffered(buf, 0, buflen, format, false);
-                buf[0] = fc->ch ? fc->ch : ' ';
+                // tracex(1, "appending line %d (1) \"%s\"", l, buf);
+                append_buffered(buf, 0, buflen, (format_info){.style=bbchFormat->style}, false);
+                buf[0] = zucs_char_to_latin1_char(bbch->character);
                 buflen = 1;
-                format = fc->format;
+                bbchFormat = bbch;
             }
+
         }
 
         // any trailing text...
-        append_buffered(buf, 0, buflen, format, true);
-    }
-}
-
-void set_optional_bool(json_t *obj, char *name, bool value) {
-    if (value) {
-        json_object_set_new(obj, name, json_true());
+        buf[buflen] = '\0';
+        // tracex(1, "appending line %d (2) \"%s\"", l, buf);
+        append_buffered(buf, 0, buflen, (format_info){.style=bbchFormat->style}, true);
+        buflen = 0;
+        // tracex(1, "finished line: %d", l);
     }
 }
 
@@ -242,21 +100,24 @@ void generate_json_output() {
     // Collect status (unbuffered window)
     json_t* status = json_array();
 
-    for (int l = 0; l < unbufferedLines; l++) {
-        char buf[SCREEN_WIDTH+1];
+    for (int l = 0; l < upper_window_actual_height; l++) {
+        char buf[upper_window_buffer->width+1];
         int buflen = 0;
-        format_info format = unbufferedWindow[l][0].format;
-        for (int c = 0; c < SCREEN_WIDTH; c++) {
-            formatted_char *fc = &unbufferedWindow[l][c];
-            if (format_equal(fc->format, format)) {
-                buf[buflen++] = fc->ch;
+
+        struct blockbuf_char *bbchFormat = blockbuf_char_at_yx(upper_window_buffer, 0, 0);
+
+        for (int c = 0; c < upper_window_buffer->width; c++) {
+            struct blockbuf_char *bbch = blockbuf_char_at_yx(upper_window_buffer, l, c);
+
+            if (blockbuf_format_equal(bbch, bbchFormat)) {
+                buf[buflen++] = zucs_char_to_latin1_char(bbch->character);
             } else {
                 // format boundary!
                 buf[buflen] = '\0';
                 json_array_append_new(status, json_string(buf));
-                buf[0] = fc->ch;
+                buf[0] = zucs_char_to_latin1_char(bbch->character);
                 buflen = 1;
-                format = fc->format;
+                bbchFormat = bbch;
             }
         }
 
@@ -268,33 +129,7 @@ void generate_json_output() {
     }
 
     // Collect story lines (buffered window)...
-    json_t* story = json_array();
-
-    for (int l = 0; l < bufferedLines+1; l++) {
-        json_t* line;
-
-        formatted_text *text = bufferedWindow[l];
-
-        if (!text) {
-            line = json_null();
-        } else {
-            line = json_array();
-
-            for (formatted_text *cur = text; cur != NULL; cur = cur->next) {
-                json_t *span = json_object();
-                z_style style = cur->format.style;
-                // json_object_set_new(span, "style", json_integer(style));
-                set_optional_bool(span, "reverse", style & Z_STYLE_REVERSE_VIDEO);
-                set_optional_bool(span, "bold", style & Z_STYLE_BOLD);
-                set_optional_bool(span, "italic", style & Z_STYLE_ITALIC);
-                set_optional_bool(span, "fixed", style & Z_STYLE_FIXED_PITCH);
-                json_object_set_new(span, "text", json_string(cur->str));
-                json_array_append_new(line, span);
-            }
-        }
-
-        json_array_append_new(story, line);
-    }
+    json_t* story = generate_buffered_json();
 
     json_t* output = json_object();
     json_object_set_new(output, "status", status);
@@ -307,27 +142,6 @@ void generate_json_output() {
 }
 
 
-void dump_formatted_text(formatted_text *text) {
-    if (text == NULL) {
-        return;
-    }
-    fprintf(stderr, "\e[38;5;70m%s%s%s%s\e[0m",
-        text->format.style & Z_STYLE_REVERSE_VIDEO ? "\e[7m" : "",
-        text->format.style & Z_STYLE_BOLD ? "\e[1m" : "",
-        text->format.style & Z_STYLE_ITALIC ? "\e[4m" : "",
-        text->str);
-    dump_formatted_text(text->next);
-}
-
-
-void dump_buffered() {
-    fprintf(stderr, "\e[38;5;12mbuffered window (%d-ish lines):\e[0m\n", bufferedLines);
-    // +1 for any trailing line (NULL is ignored)...
-    for (int l = 0; l < bufferedLines+1; l++) {
-        dump_formatted_text(bufferedWindow[l]);
-        fprintf(stderr, "\n");
-    }
-}
 
 // Simple interface helpers
 char *screen_get_name()     { return PACKAGE_NAME; }
@@ -337,8 +151,6 @@ bool screen_return_true()   { return true; }
 uint8_t screen_return_0()   { return 0; }
 uint8_t screen_return_1()   { return 1; }
 
-// As per the Z-machine spec, "8.4.1: A screen height of 255 lines means
-// 'infinte height'."
 uint16_t screen_get_screen_height() { return SCREEN_HEIGHT; }
 uint16_t screen_get_screen_width()  { return SCREEN_WIDTH; }
 
@@ -374,11 +186,6 @@ void screen_link_to_story(struct z_story *story) {
 // Called at @restart time.
 void screen_reset() {
     trace(1, "");
-    erase_unbuffered_window();
-    unbufferedLines = 0;
-    unbufferedLine = 0;
-    unbufferedCol = 0;
-    erase_buffered_window();
     currentFormat = DEFAULT_FORMAT;
 }
 
@@ -428,45 +235,32 @@ void screen_output_z_ucs(z_ucs *z_ucs_output) {
     // trace(1, "\"%s\"", debug);
     // free(debug);
 
-    if (currentWindow == STATUS_WINDOW) {
-        unbufferedTouched = true;
-        // push characters into window, advance cursor...
-        for (z_ucs *cur = z_ucs_output; *cur != 0; cur++) {
-            formatted_char *fc = &unbufferedWindow[unbufferedLine][unbufferedCol];
-            fc->ch = *cur;
-            fc->format = currentFormat;
-            unbufferedCol++;
-        }
-
-        // skip remaining debug output...
+    if (currentWindow != STORY_WINDOW) {
         return;
     }
 
-    if (currentWindow == STORY_WINDOW) {
-        // Start outputting where we left off... break the output into lines (TBD)
-        char *output = dup_zucs_string_to_utf8_string(z_ucs_output);
-        int lineStart = 0;
-        int len = strlen(output);
-        for (int i = 0; i < len; i++) {
-            if (output[i] == '\n') {
-                // Take what we have and buffer it...
-                append_buffered(output, lineStart, i, currentFormat, true);
-                lineStart = i+1;
-            }
+    // Start outputting where we left off... break the output into lines (TBD)
+    char *output = dup_zucs_string_to_utf8_string(z_ucs_output);
+    int lineStart = 0;
+    int len = strlen(output);
+    for (int i = 0; i < len; i++) {
+        if (output[i] == '\n') {
+            // Take what we have and buffer it...
+            append_buffered(output, lineStart, i, currentFormat, true);
+            lineStart = i+1;
         }
-        if (lineStart < len) {
-            append_buffered(output, lineStart, len, currentFormat, false);
-        }
-        free(output);
     }
-
+    if (lineStart < len) {
+        append_buffered(output, lineStart, len, currentFormat, false);
+    }
+    free(output);
 }
 
 // The JSON I/O may need to go elsewhere, this is a temporary stub
 int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
     trace(2, "%s, (*dest), %d, (*elapsedTenths)", single ? "true" : "false", max);
 
-    // dump_unbuffered();
+    // dump_upper_window();
     // dump_buffered();
     generate_json_output();
     erase_buffered_window();    // ???
@@ -475,15 +269,39 @@ int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
     struct timeval end;
     int n = gettimeofday(&start, NULL); // do we care about failed calls?
 
-    char buf[1000];
-    memset(buf, 0, 1000);   // need sizeof/countof?
     fprintf(stderr, "\n\e[38;5;13mwaiting to read%s...\e[0m\n", single ? " (single character only!)": "");
-    char * str = fgets(buf, 1000, stdin);
 
-    if (!str) {
-        tracex(1, "error reading line");
+    json_error_t error;
+    json_t *input = json_loadf(stdin, JSON_DISABLE_EOF_CHECK, &error);
+    if (!input) {
+        fprintf(stderr, "ERROR with input, line %d, column %d (position %d): %s (%s)\n", error.line, error.column, error.position, error.text, error.source);
         return -1;
     }
+
+    // What did we get?
+    if (!json_is_object(input)) {
+        fprintf(stderr, "ERROR: expected object!");
+        json_decref(input);
+        return -1;
+    }
+
+    // Extract input string...
+    char buf[1000];
+    // memset(buf, 0, 1000);   // need sizeof/countof?
+    buf[0] = '\0';
+    const char *value = json_string_value(json_object_get(input, "input"));
+    strlcpy(buf, value, 1000);
+
+    json_decref(input);
+
+    // char buf[1000];
+    // memset(buf, 0, 1000);   // need sizeof/countof?
+    // char * str = fgets(buf, 1000, stdin);
+    //
+    // if (!str) {
+    //     tracex(1, "error reading line");
+    //     return -1;
+    // }
 
     n = gettimeofday(&end, NULL); // do we care about failed calls?
 
@@ -542,14 +360,6 @@ void screen_show_status(z_ucs *room_description,
     trace(1, "%s, %d, %d, %d", (char*)room_description, status_line_mode, parameter1, parameter2);
 }
 
-// const char* STYLE_NAMES[] = {
-//     "ROMAN",
-//     "REVERSE",
-//     "BOLD",
-//     "ITALIC",
-//     "FIXED",
-// };
-
 void screen_set_text_style(z_style text_style) {
     trace(1, "%d", text_style);
 
@@ -581,18 +391,16 @@ void screen_set_font(z_font font_type) {
 void screen_split_window(int16_t nof_lines) {
     trace(1, "%d lines", nof_lines);
 
-    // If the unbuffered window was touched, *and* we're shrinking it,
-    // force-dump the current values.  This appears to be needed for
-    // Graham Nelson's "Curses", for example, for the intro quote.
-    if (nof_lines < unbufferedLines && unbufferedTouched) {
-        // dump_unbuffered();
-        // TODO: buffer the unbuffered lines!
-        buffer_unbuffered();
+    // TODO: THIS WILL NEED REVAMPING!
+
+    // If we're shrinking it, force-dump the current values.  This appears to be
+    // needed for Graham Nelson's "Curses", for example, for the intro quote.
+    if (nof_lines < upper_window_actual_height) {
+        // dump_upper_window();
+        buffer_upper_window();
     }
 
-    partial_erase_unbuffered_window(nof_lines);
-
-    unbufferedLines = nof_lines;
+    upper_window_actual_height = nof_lines;
 }
 
 // We only support very simple "windows", where window 0 is the story, and
@@ -609,58 +417,55 @@ void screen_set_window(int16_t window_number) {
 
 void screen_erase_window(int16_t window_number) {
     trace(1, "%s", WINDOW_NAMES[window_number]);
-    switch (window_number) {
-        case STATUS_WINDOW:
-            erase_unbuffered_window();
-            break;
-        case STORY_WINDOW:
-            erase_buffered_window();
-            break;
+
+    if (window_number != STORY_WINDOW) {
+        return;
     }
+
+    erase_buffered_window();
 }
 
 void screen_set_cursor(int16_t line, int16_t column, int16_t window) {
     trace(3, "%d, %d, %s", line, column, WINDOW_NAMES[window]);
-    if (window == STATUS_WINDOW) {
-        unbufferedLine = line - 1;
-        unbufferedCol = column - 1;
-    }
+    // if (window_number != STORY_WINDOW) {
+    //     return;
+    // }
 }
 
 uint16_t screen_get_cursor_row()    {
     trace(1, "[window: %s]", WINDOW_NAMES[currentWindow]);
-    if (currentWindow != STATUS_WINDOW) {
-        return 0;
+    if (currentWindow == STATUS_WINDOW) {
+        // return unbufferedLine + 1;
+        return upper_window_buffer->xpos + 1;
     }
 
-    return unbufferedLine + 1;
+    return 0;
 }
 
 uint16_t screen_get_cursor_column() {
     trace(1, "[window: %s]", WINDOW_NAMES[currentWindow]);
-    if (currentWindow != STATUS_WINDOW) {
-        return 0;
+    if (currentWindow == STATUS_WINDOW) {
+        // return unbufferedCol + 1;
+        return upper_window_buffer->ypos + 1;
     }
 
-    return unbufferedCol + 1;
+    return 0;
 }
 
 void screen_erase_line_value(uint16_t start_position) {
     trace(1, "%d, [window: %s]", start_position, WINDOW_NAMES[currentWindow]);
-    if (currentWindow != STATUS_WINDOW) {
-        return;
-    }
 }
 
 void screen_erase_line_pixels(uint16_t start_position) {
     trace(1, "%d, [window: %s]", start_position, WINDOW_NAMES[currentWindow]);
-    if (currentWindow != STATUS_WINDOW) {
-        return;
-    }
 }
 
 void screen_output_info() {
     trace(1, "");
+    (void)streams_latin1_output(PACKAGE_NAME);
+    (void)streams_latin1_output(" interface version ");
+    (void)streams_latin1_output(PACKAGE_VERSION);
+    (void)streams_latin1_output("\n");
 }
 
 void screen_game_was_restored_and_history_modified() {
@@ -670,7 +475,10 @@ void screen_game_was_restored_and_history_modified() {
 int screen_prompt_for_filename(char *filename_suggestion,
     z_file **result, char *directory, int filetype, int fileaccess) {
     trace(1, "%s, (result), %s, %d, %d", filename_suggestion, directory, filetype, fileaccess);
-    return 0;
+    // -3 means "not supported", but the interpreter specifically "handles"
+    // this for transcripts... perhaps we should notice this and return
+    // -2 in that case?
+    return -3;
 }
 
 
@@ -679,7 +487,7 @@ struct z_screen_interface bot_screen = {
     &screen_get_name,           // get_interface_name
 
     &screen_return_true,        // is_status_line_available
-    &screen_return_false,       // is_split_screen_available
+    &screen_return_false, //??  // is_split_screen_available
     &screen_return_true,        // is_variable_pitch_font_default
     &screen_return_false,       // is_colour_available
     &screen_return_false,       // is_picture_displaying_available

@@ -1,7 +1,6 @@
-/* filesys.c
- *
- * This file is part of fizmo-bot.  Please see LICENSE.md for the license.
- */
+// filesys.c
+//
+// This file is part of fizmo-bot.  Please see LICENSE.md for the license.
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -13,13 +12,14 @@
 #include "util.h"
 
 // fizmo includes...
+#include <interpreter/fizmo.h>
 #include <filesys_interface/filesys_interface.h>
 
 
 z_file* filesys_openfile(char *filename, int filetype, int fileaccess) {
     trace(1, "%s, %d, %d", filename, filetype, fileaccess);
 
-    z_file *result = malloc(sizeof(z_file));
+    z_file *result = fizmo_malloc(sizeof(z_file));
     if (!result) {
         return NULL;
     }
@@ -288,7 +288,7 @@ int filesys_ch_dir(char *dirname) {
 z_dir* filesys_open_dir(char *dirname) {
     trace(1, "%s", dirname);
 
-    z_dir *result = malloc(sizeof(z_dir));
+    z_dir *result = fizmo_malloc(sizeof(z_dir));
     if (!result) {
         return NULL;
     }
