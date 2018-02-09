@@ -8,6 +8,8 @@
 // jansson...
 #include <jansson.h>
 
+#include "format.h"
+
 typedef struct {} LINEBUF;
 
 extern LINEBUF *create_line_buffer();
