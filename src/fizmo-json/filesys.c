@@ -61,7 +61,7 @@ int filesys_closefile(z_file *file_to_close) {
 
 // Returns -1 on EOF.
 int filesys_readchar(z_file *fileref) {
-    trace(3, "%s", fileref ? fileref->filename : "(NULL)");
+    trace(4, "%s", fileref ? fileref->filename : "(NULL)");
     if (!fileref || !fileref->file_object) {
         tracex(1, "no file, bailing");
         return -1;
@@ -69,14 +69,14 @@ int filesys_readchar(z_file *fileref) {
 
     int ch = fgetc(fileref->file_object);
     long pos = ftell(fileref->file_object);
-    tracex(3, "read % 3d '%c' (now at pos %d)", ch, ch > 20 ? (char)ch : '?', pos);
+    tracex(4, "read % 3d '%c' (now at pos %d)", ch, ch > 20 ? (char)ch : '?', pos);
 
     return ch;
 }
 
 // Returns number of bytes read.
 size_t filesys_readchars(void *ptr, size_t len, z_file *fileref) {
-    trace(3, "%s, %d", fileref ? fileref->filename : "(NULL)", len);
+    trace(4, "%s, %d", fileref ? fileref->filename : "(NULL)", len);
 
     if (!fileref || !fileref->file_object) {
         tracex(1, "no file, bailing");
@@ -84,7 +84,7 @@ size_t filesys_readchars(void *ptr, size_t len, z_file *fileref) {
     }
 
     size_t result = fread(ptr, 1, len, fileref->file_object);
-    tracex(3, "read %d bytes", result);
+    tracex(4, "read %d bytes", result);
 
     return result;
 }
@@ -193,7 +193,7 @@ long filesys_getfilepos(z_file *fileref) {
 }
 
 int filesys_setfilepos(z_file *fileref, long seek, int whence) {
-    trace(3, "%s, %d, %d", fileref ? fileref->filename : "(NULL)", seek, whence);
+    trace(4, "%s, %d, %d", fileref ? fileref->filename : "(NULL)", seek, whence);
 
     if (!fileref || !fileref->file_object) {
         tracex(1, "no file, bailing");
@@ -202,13 +202,13 @@ int filesys_setfilepos(z_file *fileref, long seek, int whence) {
 
     int result = fseek(fileref->file_object, seek, whence);
     long pos = ftell(fileref->file_object);
-    tracex(3, "seek returned %d (now at pos %d)", result, pos);
+    tracex(4, "seek returned %d (now at pos %d)", result, pos);
 
     return result;
 }
 
 int filesys_unreadchar(int c, z_file *fileref) {
-    trace(3, "%s", fileref ? fileref->filename : "(NULL)");
+    trace(4, "%s", fileref ? fileref->filename : "(NULL)");
 
     if (!fileref || !fileref->file_object) {
         tracex(1, "no file, bailing");
@@ -217,7 +217,7 @@ int filesys_unreadchar(int c, z_file *fileref) {
 
     int result = ungetc(c, fileref->file_object);
     long pos = ftell(fileref->file_object);
-    tracex(3, "ungetc returned %d (now at pos %d)", result, pos);
+    tracex(4, "ungetc returned %d (now at pos %d)", result, pos);
 
     return result;
 }
@@ -326,7 +326,7 @@ int filesys_close_dir(z_dir *dirref) {
 }
 
 int filesys_read_dir(struct z_dir_ent *dir_ent, z_dir *dirref) {
-    trace(3, "[%p]", dirref);
+    trace(4, "[%p]", dirref);
 
     if (!dirref || !dirref->dir_object) {
         tracex(1, "no dir, bailing");

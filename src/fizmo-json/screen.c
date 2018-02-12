@@ -19,6 +19,7 @@
 #include "config.h"
 #include "util.h"
 #include "buffer.h"
+#include "columns.h"
 #include "format.h"
 
 format_info currentFormat = DEFAULT_FORMAT;
@@ -39,10 +40,6 @@ void screen_use_console_input() {
 // The BLOCKBUF tracked by fizmo *never* shrinks (for performance and other
 // reasons), but we need to know the intended size when rendering output.
 int upper_window_actual_height = 0;
-
-struct blockbuf_char *blockbuf_char_at_yx(BLOCKBUF *bb, int ypos, int xpos) {
-    return &bb->content[(ypos * bb->width) + xpos];
-}
 
 LINEBUF *screen_linebuf = NULL;
 
@@ -73,36 +70,69 @@ LINEBUF* buffer_upper_window() {
 
         end++;
 
-        // tracex(1, "found line %d end: %d", l, end);
-
-        struct blockbuf_char *bbchFormat = blockbuf_char_at_yx(upper_window_buffer, l, 0);
-
-        for (int c = 0; c < end; c++) {
-            struct blockbuf_char *bbch = blockbuf_char_at_yx(upper_window_buffer, l, c);
-
-            if (blockbuf_format_equal(bbch, bbchFormat)) {
-                buf[buflen++] = zucs_char_to_latin1_char(bbch->character);
-            } else {
-                // format boundary!
-                buf[buflen] = '\0';
-                // tracex(1, "appending line %d (1) \"%s\"", l, buf);
-                line_buffer_append(lb, buf, 0, buflen, (format_info){.style=bbchFormat->style}, false);
-                buf[0] = zucs_char_to_latin1_char(bbch->character);
-                buflen = 1;
-                bbchFormat = bbch;
-            }
-
-        }
-
-        // any trailing text...
-        buf[buflen] = '\0';
-        // tracex(1, "appending line %d (2) \"%s\"", l, buf);
-        line_buffer_append(lb, buf, 0, buflen, (format_info){.style=bbchFormat->style}, true);
-        buflen = 0;
-        // tracex(1, "finished line: %d", l);
+        formatted_text *text = formatted_text_from_blockbuf(upper_window_buffer, l, 0, end);
+        line_buffer_append_text(lb, &text, true);
     }
 
     return lb;
+}
+
+void dump_upper_window() {
+    for (int l = 0; l < upper_window_actual_height; l++) {
+        fprintf(stderr, "[");
+        for (int c = 0; c < upper_window_buffer->width; c++) {
+            const struct blockbuf_char *bbch = blockbuf_char_at_yx(upper_window_buffer, l, c);
+            const char ch = zucs_char_to_latin1_char(bbch->character);
+            fprintf(stderr, "%c", ch);
+        }
+        fprintf(stderr, "]\n");
+    }
+}
+
+// The upper window (status window) is often divided into "parts": location,
+// score/turns, date/time, etc.  A game *can* do anything there, but we should
+// at least be able to tell if it looks like there are separate pieces of
+// information.  In particular, we want to look for distinct columns of text,
+// those separated by 3 or more spaces.
+COLUMNBUF * infer_upper_window_parts() {
+    trace(0, "");
+
+    dump_upper_window();
+
+    COLUMNBUF *cb = create_column_buffer();
+
+    int columnStarts[20];
+    int columns = 0;
+
+    for (int l = 0; l < upper_window_actual_height; l++) {
+        tracex(0, "looking at line %d", l);
+        int lastTextStart = -1;
+        int spacesSeen = 0;
+        for (int c = 0; c < upper_window_buffer->width; c++) {
+            const struct blockbuf_char *bbch = blockbuf_char_at_yx(upper_window_buffer, l, c);
+            const char ch = zucs_char_to_latin1_char(bbch->character);
+
+            if (ch == ' ') {
+                spacesSeen++;
+                if (spacesSeen >= 3 && lastTextStart >= 0) {
+                    tracex(0, "line %d, text start at %d ended at %d", l, lastTextStart, c - spacesSeen + 1);
+
+                    column_buffer_add_column(cb, lastTextStart, upper_window_buffer, l, lastTextStart, c - spacesSeen + 1);
+
+                    columnStarts[columns++] = lastTextStart;
+                    lastTextStart = -1;
+                }
+            } else {
+                if (lastTextStart < 0) {
+                    tracex(0, "line %d, text start at: %d", l, c);
+                    lastTextStart = c;
+                }
+                spacesSeen = 0;
+            }
+        }
+    }
+
+    return cb;
 }
 
 // Generate a JSON object for the output...
@@ -110,38 +140,17 @@ void generate_json_output() {
     trace(1, "");
 
     // Collect status (unbuffered window)
-    json_t* status = json_array();
+    json_t* status = json_object();
+    COLUMNBUF *cb = infer_upper_window_parts();
+    json_object_set_new(status, "columns", column_buffer_to_json(cb));
+    free_column_buffer(&cb);
 
-    // for (int l = 0; l < upper_window_actual_height; l++) {
-    //     char buf[upper_window_buffer->width+1];
-    //     int buflen = 0;
-    //
-    //     struct blockbuf_char *bbchFormat = blockbuf_char_at_yx(upper_window_buffer, 0, 0);
-    //
-    //     for (int c = 0; c < upper_window_buffer->width; c++) {
-    //         struct blockbuf_char *bbch = blockbuf_char_at_yx(upper_window_buffer, l, c);
-    //
-    //         if (blockbuf_format_equal(bbch, bbchFormat)) {
-    //             buf[buflen++] = zucs_char_to_latin1_char(bbch->character);
-    //         } else {
-    //             // format boundary!
-    //             buf[buflen] = '\0';
-    //             json_array_append_new(status, json_string(buf));
-    //             buf[0] = zucs_char_to_latin1_char(bbch->character);
-    //             buflen = 1;
-    //             bbchFormat = bbch;
-    //         }
-    //     }
-    //
-    //     // any trailing text...
-    //     if (buflen > 0) {
-    //         buf[buflen] = '\0';
-    //         json_array_append_new(status, json_string(buf));
-    //     }
-    // }
+    LINEBUF *lb = buffer_upper_window();
+    json_object_set_new(status, "lines", line_buffer_to_json(lb));
+    free_line_buffer(&lb);
 
     // Collect story lines (buffered window)...
-    json_t* story = line_buffer_generate_json(screen_linebuf);
+    json_t* story = line_buffer_to_json(screen_linebuf);
 
     json_t* output = json_object();
     json_object_set_new(output, "status", status);
@@ -277,10 +286,7 @@ void screen_output_z_ucs(z_ucs *z_ucs_output) {
 int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
     trace(2, "%s, (*dest), %d, (*elapsedTenths)", single ? "true" : "false", max);
 
-    // dump_upper_window();
-    // dump_buffered();
     generate_json_output();
-    // erase_buffered_window();    // ???
     free_line_buffer(&screen_linebuf);
 
     struct timeval start;
@@ -413,7 +419,6 @@ void screen_split_window(int16_t nof_lines) {
     // needed for Graham Nelson's "Curses", for example, for the intro quote.
     if (nof_lines < upper_window_actual_height) {
         tracex(1, "prepending upper window!");
-        // dump_upper_window();
         LINEBUF *lb = buffer_upper_window();
 
         if (screen_linebuf == NULL) {

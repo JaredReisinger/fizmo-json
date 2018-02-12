@@ -11,7 +11,7 @@
 #include "util.h"
 
 
-typedef struct line_buffer {
+typedef struct {
     int capacity;
     int nextLine;
     formatted_text **lines;
@@ -37,7 +37,7 @@ void free_line_buffer(LINEBUF **buf) {
     line_buffer *lb = (line_buffer *)(*buf);
 
     for (int l = 0; l < lb->capacity; l++) {
-        free_formatted_text(lb->lines[l]);
+        free_formatted_text(&(lb->lines[l]));
     }
 
     free(lb->lines);
@@ -100,6 +100,49 @@ void line_buffer_append(LINEBUF *buf, const char *src, int start, int end, forma
     }
 }
 
+void line_buffer_append_text(LINEBUF *buf, formatted_text **text, bool advance) {
+    trace(2, "%p, %p, %s", buf, *text, advance ? "true" : "false");
+
+    line_buffer *lb = (line_buffer *)buf;
+
+    while (lb->nextLine >= lb->capacity) {
+        grow_line_buffer(lb);
+    }
+
+    if (*text) {
+        if (lb->lines[lb->nextLine] == NULL) {
+            tracex(3, "starting new line");
+            lb->lines[lb->nextLine] = *text;
+            *text = NULL;
+        } else {
+            formatted_text *cur = lb->lines[lb->nextLine];
+            tracex(3, "appending to existing line (%p)", cur);
+            while (cur->next != NULL) {
+                cur = cur->next;
+                tracex(3, "walking... (%p)", cur);
+            }
+
+            // We'll either add a new formatted_text as 'next', or, if the
+            // formatting hasn't changed, simply append it to the current one.
+            if (format_equal((*text)->format, cur->format)) {
+                char *str;
+                asprintf(&str, "%s%s", cur->str, (*text)->str);
+                free(cur->str);
+                free_formatted_text(text);
+                cur->str = str;
+            } else {
+                cur->next = *text;
+                *text = NULL;
+            }
+        }
+    }
+
+    if (advance) {
+        tracex(3, "advancing line");
+        lb->nextLine++;
+    }
+}
+
 void line_buffer_prepend_and_free(LINEBUF* buf, LINEBUF** prepend) {
     trace(1, "%p, %p", buf, *prepend);
     line_buffer *lb = (line_buffer *)buf;
@@ -137,13 +180,7 @@ void line_buffer_prepend_and_free(LINEBUF* buf, LINEBUF** prepend) {
 }
 
 
-void set_optional_bool(json_t *obj, char *name, bool value) {
-    if (value) {
-        json_object_set_new(obj, name, json_true());
-    }
-}
-
-json_t* line_buffer_generate_json(LINEBUF* buf) {
+json_t* line_buffer_to_json(LINEBUF* buf) {
     trace(1, "%p", buf);
 
     line_buffer *lb = (line_buffer *)buf;
@@ -152,29 +189,7 @@ json_t* line_buffer_generate_json(LINEBUF* buf) {
     json_t* lines = json_array();
 
     for (int l = 0; l < lb->nextLine+1; l++) {
-        json_t* line;
-
-        formatted_text *text = lb->lines[l];
-
-        if (!text) {
-            line = json_null();
-        } else {
-            line = json_array();
-
-            for (formatted_text *cur = text; cur != NULL; cur = cur->next) {
-                json_t *span = json_object();
-                z_style style = cur->format.style;
-                // json_object_set_new(span, "style", json_integer(style));
-                set_optional_bool(span, "reverse", style & Z_STYLE_REVERSE_VIDEO);
-                set_optional_bool(span, "bold", style & Z_STYLE_BOLD);
-                set_optional_bool(span, "italic", style & Z_STYLE_ITALIC);
-                set_optional_bool(span, "fixed", style & Z_STYLE_FIXED_PITCH);
-                json_object_set_new(span, "text", json_string(cur->str));
-                json_array_append_new(line, span);
-            }
-        }
-
-        json_array_append_new(lines, line);
+        json_array_append_new(lines, formatted_text_to_json(lb->lines[l]));
     }
 
     return lines;

@@ -5,10 +5,9 @@
 #ifndef FIZMO_JSON_FORMAT_H
 #define FIZMO_JSON_FORMAT_H
 
-// fizmo includes...
-// #include <interpreter/fizmo.h>
 #include <interpreter/blockbuf.h>
 #include <tools/z_ucs.h>
+#include <jansson.h>
 
 
 typedef struct {
@@ -32,12 +31,19 @@ typedef struct formatted_text {
 
 // const formatted_char empty_char = (formatted_char){ };
 
+extern struct blockbuf_char *blockbuf_char_at_yx(BLOCKBUF *bb, int ypos, int xpos);
+
 extern bool format_equal(format_info a, format_info b);
 
 extern bool blockbuf_format_equal(const struct blockbuf_char *a, const struct blockbuf_char *b);
 
 extern formatted_text *new_text(const char *src, int start, int end, format_info format);
 
-extern void free_formatted_text(formatted_text *text);
+extern formatted_text *formatted_text_from_blockbuf(BLOCKBUF *buf, int line, int start, int end);
+
+extern void free_formatted_text(formatted_text **text);
+
+extern json_t *formatted_text_to_json(formatted_text *text);
+
 
 #endif // FIZMO_JSON_FORMAT_H
