@@ -2,11 +2,12 @@
 //
 // This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
-
-#include <stdlib.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdbool.h>
+extern "C" {
+    #include <stdlib.h>
+    #include <stdarg.h>
+    #include <stdio.h>
+    #include <stdbool.h>
+}
 
 #include "config.h"
 

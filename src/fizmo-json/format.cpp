@@ -2,9 +2,11 @@
 //
 // This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
-#include <stdlib.h>
-#include <interpreter/fizmo.h>
-#include <jansson.h>
+extern "C" {
+    #include <stdlib.h>
+    #include <interpreter/fizmo.h>
+    #include <jansson.h>
+}
 
 // const formatted_char empty_char = (formatted_char){ };
 
@@ -27,7 +29,7 @@ struct blockbuf_char *blockbuf_char_at_yx(BLOCKBUF *bb, int ypos, int xpos) {
 
 formatted_text *new_text(const char *src, int start, int end, format_info format) {
     trace(3, "");
-    formatted_text *text = fizmo_malloc(sizeof(formatted_text));
+    formatted_text *text = (formatted_text *)fizmo_malloc(sizeof(formatted_text));
     memset(text, 0, sizeof(formatted_text));
     text->format = format;
     text->str = strndup(&src[start], end-start);
@@ -101,7 +103,7 @@ formatted_text *formatted_text_from_blockbuf(BLOCKBUF *buf, int line, int start,
     return result;
 }
 
-void set_optional_bool(json_t *obj, char *name, bool value) {
+void set_optional_bool(json_t *obj, const char *name, bool value) {
     if (value) {
         json_object_set_new(obj, name, json_true());
     }

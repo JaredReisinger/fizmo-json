@@ -2,14 +2,15 @@
 //
 // This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
-#include <interpreter/fizmo.h>
-#include <jansson.h>
+extern "C" {
+    #include <interpreter/fizmo.h>
+    #include <jansson.h>
+}
 
 #include "screen.h"
 #include "buffer.h"
 #include "format.h"
 #include "util.h"
-
 
 typedef struct {
     int capacity;
@@ -20,7 +21,7 @@ typedef struct {
 
 LINEBUF *create_line_buffer() {
     trace(2, "");
-    line_buffer *lb = fizmo_malloc(sizeof(line_buffer));
+    line_buffer *lb = (line_buffer *)fizmo_malloc(sizeof(line_buffer));
     // memset(lb, 0, sizeof(line_buffer));
     *lb = (line_buffer){ .capacity = 0, .nextLine = 0 };
     tracex(2, "created %p", lb);
@@ -52,7 +53,7 @@ void grow_line_buffer(line_buffer *lb) {
         capacity = 10;
     }
 
-    formatted_text **lines = fizmo_realloc(lb->lines, sizeof(formatted_text *) * capacity);
+    formatted_text **lines = (formatted_text **)fizmo_realloc(lb->lines, sizeof(formatted_text *) * capacity);
     if (lines != NULL) {
         memset(&lines[lb->capacity], 0, sizeof(formatted_text *) * (capacity - lb->capacity));
         lb->lines = lines;

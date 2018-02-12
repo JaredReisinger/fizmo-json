@@ -2,8 +2,10 @@
 //
 // This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
-#include <interpreter/fizmo.h>
-#include <jansson.h>
+extern "C" {
+    #include <interpreter/fizmo.h>
+    #include <jansson.h>
+}
 
 #include "screen.h"
 #include "columns.h"
@@ -33,7 +35,7 @@ typedef struct {
 
 COLUMNBUF *create_column_buffer() {
     trace(2, "");
-    column_buffer *cb = fizmo_malloc(sizeof(column_buffer));
+    column_buffer *cb = (column_buffer *)fizmo_malloc(sizeof(column_buffer));
     // memset(lb, 0, sizeof(line_buffer));
     *cb = (column_buffer){ .size = 0, .columns = NULL };
     tracex(2, "created %p", cb);
@@ -103,7 +105,7 @@ column_info *ensure_column(column_buffer *cb, int c) {
         // need to add a column (and shift...)
         index = -index - 1;
         tracex(2, "attempting to create index %d for column %d, new size %d", index, c, cb->size+1);
-        column_info *columns = fizmo_realloc(cb->columns, sizeof(column_info) * (cb->size+1));
+        column_info *columns = (column_info *)fizmo_realloc(cb->columns, sizeof(column_info) * (cb->size+1));
         if (columns == NULL) {
             tracex(1, "out of memory!");
             return NULL;
@@ -124,7 +126,7 @@ column_info *ensure_column(column_buffer *cb, int c) {
 
 void column_info_add_line(column_info *info, int line, formatted_text *text) {
     trace(1, "%p, %d, %p", info, line, text);
-    column_line *cl = fizmo_malloc(sizeof(column_line));
+    column_line *cl = (column_line *)fizmo_malloc(sizeof(column_line));
     cl->line = line;
     cl->text = text;
     cl->next = NULL;

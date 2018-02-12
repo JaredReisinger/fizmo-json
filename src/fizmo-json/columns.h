@@ -5,8 +5,10 @@
 #ifndef FIZMO_JSON_COLUMNS_H
 #define FIZMO_JSON_COLUMNS_H
 
-// jansson...
-#include <jansson.h>
+extern "C" {
+    // jansson...
+    #include <jansson.h>
+}
 
 typedef struct {} COLUMNBUF;
 

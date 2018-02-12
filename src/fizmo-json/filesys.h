@@ -6,7 +6,9 @@
 #define FIZMO_JSON_FILESYS_H
 
 
-#include <filesys_interface/filesys_interface.h>
+extern "C" {
+    #include <filesys_interface/filesys_interface.h>
+}
 
 extern struct z_filesys_interface bot_filesys;
 

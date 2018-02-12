@@ -2,18 +2,20 @@
 //
 // This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
-#include <stdio.h>
-#include <ctype.h>
-#include <string.h>
-#include <sys/time.h>
+extern "C" {
+    #include <stdio.h>
+    #include <ctype.h>
+    #include <string.h>
+    #include <sys/time.h>
 
-// fizmo includes...
-#include <interpreter/fizmo.h>
-#include <interpreter/streams.h>
-#include <tools/z_ucs.h>
+    // fizmo includes...
+    #include <interpreter/fizmo.h>
+    #include <interpreter/streams.h>
+    #include <tools/z_ucs.h>
 
-// jansson...
-#include <jansson.h>
+    // jansson...
+    #include <jansson.h>
+}
 
 #include "screen.h"
 #include "config.h"
@@ -166,7 +168,7 @@ void generate_json_output() {
 
 
 // Simple interface helpers
-char *screen_get_name()     { return PACKAGE_NAME; }
+char *screen_get_name()     { return (char*)PACKAGE_NAME; }
 
 bool screen_return_false()  { return false; }
 bool screen_return_true()   { return true; }
@@ -238,7 +240,7 @@ int screen_close(z_ucs *error_message) {
 }
 
 void screen_set_buffer_mode(uint8_t new_buffer_mode) {
-    char *mode = "UNKNOWN!!!";
+    const char *mode = "UNKNOWN!!!";
     switch (new_buffer_mode) {
         case 0:
             mode = "OFF";
@@ -492,10 +494,10 @@ void screen_erase_line_pixels(uint16_t start_position) {
 
 void screen_output_info() {
     trace(1, "");
-    (void)streams_latin1_output(PACKAGE_NAME);
-    (void)streams_latin1_output(" interface version ");
-    (void)streams_latin1_output(PACKAGE_VERSION);
-    (void)streams_latin1_output("\n");
+    (void)streams_latin1_output((char*)PACKAGE_NAME);
+    (void)streams_latin1_output((char*)" interface version ");
+    (void)streams_latin1_output((char*)PACKAGE_VERSION);
+    (void)streams_latin1_output((char*)"\n");
 }
 
 void screen_game_was_restored_and_history_modified() {

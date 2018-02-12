@@ -3,15 +3,17 @@
  * This file is part of fizmo-json.  Please see LICENSE.md for the license.
  */
 
-// #include <stdio.h>
-#include <stdlib.h>
-#include <getopt.h>
-#include "config.h"
+ extern "C" {
+    // #include <stdio.h>
+    #include <stdlib.h>
+    #include <getopt.h>
+    #include "config.h"
 
-// fizmo includes...
-#include <interpreter/fizmo.h>
-// #include <interpreter/config.h>
-#include <tools/filesys.h>  // need this to register filesys... should be better?
+    // fizmo includes...
+    #include <interpreter/fizmo.h>
+    // #include <interpreter/config.h>
+    #include <tools/filesys.h>  // need this to register filesys... should be better?
+}
 
 #include "screen.h"
 #include "filesys.h"

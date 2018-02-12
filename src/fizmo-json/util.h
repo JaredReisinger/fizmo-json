@@ -7,7 +7,9 @@
 
 // extern void dbg(const char *msg);
 
-#include <stdbool.h>
+extern "C" {
+    #include <stdbool.h>
+}
 
 #define trace(level, args...) trace_impl(level, true, __func__, __FILE__, __LINE__, args)
 #define tracex(level, args...) trace_impl(level, false, __func__, __FILE__, __LINE__, args)

@@ -2,24 +2,27 @@
 //
 // This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <dirent.h>
-#include <unistd.h>
+extern "C" {
+    #include <stdlib.h>
+    #include <stdio.h>
+    #include <string.h>
+    #include <dirent.h>
+    #include <unistd.h>
+}
 
 #include "config.h"
 #include "util.h"
 
-// fizmo includes...
-#include <interpreter/fizmo.h>
-#include <filesys_interface/filesys_interface.h>
-
+extern "C" {
+    // fizmo includes...
+    #include <interpreter/fizmo.h>
+    #include <filesys_interface/filesys_interface.h>
+}
 
 z_file* filesys_openfile(char *filename, int filetype, int fileaccess) {
     trace(1, "%s, %d, %d", filename, filetype, fileaccess);
 
-    z_file *result = fizmo_malloc(sizeof(z_file));
+    z_file *result = (z_file *)fizmo_malloc(sizeof(z_file));
     if (!result) {
         return NULL;
     }
@@ -51,7 +54,7 @@ int filesys_closefile(z_file *file_to_close) {
 
     if (file_to_close) {
         if (file_to_close->file_object) {
-            result = fclose(file_to_close->file_object);
+            result = fclose((FILE *)(file_to_close->file_object));
         }
         free(file_to_close->filename);
         free(file_to_close);
@@ -67,8 +70,8 @@ int filesys_readchar(z_file *fileref) {
         return -1;
     }
 
-    int ch = fgetc(fileref->file_object);
-    long pos = ftell(fileref->file_object);
+    int ch = fgetc((FILE *)(fileref->file_object));
+    long pos = ftell((FILE *)(fileref->file_object));
     tracex(4, "read % 3d '%c' (now at pos %d)", ch, ch > 20 ? (char)ch : '?', pos);
 
     return ch;
@@ -83,7 +86,7 @@ size_t filesys_readchars(void *ptr, size_t len, z_file *fileref) {
         return -1;
     }
 
-    size_t result = fread(ptr, 1, len, fileref->file_object);
+    size_t result = fread(ptr, 1, len, (FILE *)(fileref->file_object));
     tracex(4, "read %d bytes", result);
 
     return result;
@@ -186,7 +189,7 @@ long filesys_getfilepos(z_file *fileref) {
         return -1;
     }
 
-    long result = ftell(fileref->file_object);
+    long result = ftell((FILE *)(fileref->file_object));
     tracex(3, "tell returned %d", result);
 
     return result;
@@ -200,8 +203,8 @@ int filesys_setfilepos(z_file *fileref, long seek, int whence) {
         return -1;
     }
 
-    int result = fseek(fileref->file_object, seek, whence);
-    long pos = ftell(fileref->file_object);
+    int result = fseek((FILE *)(fileref->file_object), seek, whence);
+    long pos = ftell((FILE *)(fileref->file_object));
     tracex(4, "seek returned %d (now at pos %d)", result, pos);
 
     return result;
@@ -215,8 +218,8 @@ int filesys_unreadchar(int c, z_file *fileref) {
         return -1;
     }
 
-    int result = ungetc(c, fileref->file_object);
-    long pos = ftell(fileref->file_object);
+    int result = ungetc(c, (FILE *)(fileref->file_object));
+    long pos = ftell((FILE *)(fileref->file_object));
     tracex(4, "ungetc returned %d (now at pos %d)", result, pos);
 
     return result;
@@ -230,7 +233,7 @@ int filesys_flushfile(z_file *fileref) {
         return -1;
     }
 
-    int result = fflush(fileref->file_object);
+    int result = fflush((FILE *)(fileref->file_object));
     tracex(1, "fflush returned %d", result);
 
     return result;
@@ -288,7 +291,7 @@ int filesys_ch_dir(char *dirname) {
 z_dir* filesys_open_dir(char *dirname) {
     trace(1, "%s", dirname);
 
-    z_dir *result = fizmo_malloc(sizeof(z_dir));
+    z_dir *result = (z_dir *)fizmo_malloc(sizeof(z_dir));
     if (!result) {
         return NULL;
     }
@@ -317,7 +320,7 @@ int filesys_close_dir(z_dir *dirref) {
     }
 
     if (dirref->dir_object) {
-        result = closedir(dirref->dir_object);
+        result = closedir((DIR *)(dirref->dir_object));
     }
 
     free(dirref);
@@ -333,7 +336,7 @@ int filesys_read_dir(struct z_dir_ent *dir_ent, z_dir *dirref) {
         return -1;
     }
 
-    struct dirent *entry = readdir(dirref->dir_object);
+    struct dirent *entry = readdir((DIR *)(dirref->dir_object));
 
     if (!entry) {
         tracex(1, "end of directory (or error)");

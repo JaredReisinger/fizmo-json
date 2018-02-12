@@ -5,8 +5,10 @@
 #ifndef FIZMO_JSON_BUFFER_H
 #define FIZMO_JSON_BUFFER_H
 
-// jansson...
-#include <jansson.h>
+extern "C" {
+    // jansson...
+    #include <jansson.h>
+}
 
 #include "format.h"
 

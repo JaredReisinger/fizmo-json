@@ -13,11 +13,12 @@ AC_INIT(
 
 AC_COPYRIGHT([Please see LICENSE.md for the license.])
 
-AC_CONFIG_SRCDIR([src/fizmo-json/fizmo-json.c])
+AC_CONFIG_SRCDIR([src/fizmo-json/fizmo-json.cpp])
 AC_CONFIG_AUX_DIR([build])
 
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
-AC_PROG_CC
+# AC_PROG_CC
+AC_PROG_CXX
 # AC_PROG_RANLIB
 
 AC_HEADER_STDC

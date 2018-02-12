@@ -5,10 +5,11 @@
 #ifndef FIZMO_JSON_FORMAT_H
 #define FIZMO_JSON_FORMAT_H
 
-#include <interpreter/blockbuf.h>
-#include <tools/z_ucs.h>
-#include <jansson.h>
-
+extern "C" {
+    #include <interpreter/blockbuf.h>
+    #include <tools/z_ucs.h>
+    #include <jansson.h>
+}
 
 typedef struct {
     // color and font are ignored for now...
