@@ -123,7 +123,7 @@ column_info *ensure_column(column_buffer *cb, int c) {
 }
 
 void column_info_add_line(column_info *info, int line, formatted_text *text) {
-    trace(0, "%p, %d, %p", info, line, text);
+    trace(1, "%p, %d, %p", info, line, text);
     column_line *cl = fizmo_malloc(sizeof(column_line));
     cl->line = line;
     cl->text = text;
@@ -138,7 +138,7 @@ void column_info_add_line(column_info *info, int line, formatted_text *text) {
 }
 
 void column_buffer_add_column(COLUMNBUF *buf, int c, BLOCKBUF *bb, int l, int start, int end) {
-    trace(0, "%p, %d, %p, %d, %d, %d", buf, c, bb, l, start, end);
+    trace(1, "%p, %d, %p, %d, %d, %d", buf, c, bb, l, start, end);
     column_buffer *cb = (column_buffer *)buf;
 
     // see if we already have the column...
@@ -151,21 +151,21 @@ void column_buffer_add_column(COLUMNBUF *buf, int c, BLOCKBUF *bb, int l, int st
 }
 
 json_t* column_buffer_to_json(COLUMNBUF *buf) {
-    trace(0, "%p", buf);
+    trace(1, "%p", buf);
     column_buffer *cb = (column_buffer *)buf;
 
     json_t* list = json_array();
 
     for (int i = 0; i < cb->size; i++) {
         column_info *info = &cb->columns[i];
-        tracex(0, "column[%d]: %d, %p", i, info->column, info->first);
+        tracex(1, "column[%d]: %d, %p", i, info->column, info->first);
 
         json_t* col = json_object();
         json_object_set_new(col, "column", json_integer(info->column));
 
         json_t* lines = json_array();
         for(column_line *cur = info->first; cur != NULL; cur = cur->next) {
-            tracex(0, "line: %d", i, cur->line);
+            tracex(1, "line: %d", i, cur->line);
             json_t* line = json_object();
             json_object_set_new(line, "line", json_integer(cur->line));
             json_object_set_new(line, "text", formatted_text_to_json(cur->text));

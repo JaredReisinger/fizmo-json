@@ -95,9 +95,9 @@ void dump_upper_window() {
 // information.  In particular, we want to look for distinct columns of text,
 // those separated by 3 or more spaces.
 COLUMNBUF * infer_upper_window_parts() {
-    trace(0, "");
+    trace(1, "");
 
-    dump_upper_window();
+    // dump_upper_window();
 
     COLUMNBUF *cb = create_column_buffer();
 
@@ -105,7 +105,7 @@ COLUMNBUF * infer_upper_window_parts() {
     int columns = 0;
 
     for (int l = 0; l < upper_window_actual_height; l++) {
-        tracex(0, "looking at line %d", l);
+        tracex(1, "looking at line %d", l);
         int lastTextStart = -1;
         int spacesSeen = 0;
         for (int c = 0; c < upper_window_buffer->width; c++) {
@@ -115,7 +115,7 @@ COLUMNBUF * infer_upper_window_parts() {
             if (ch == ' ') {
                 spacesSeen++;
                 if (spacesSeen >= 3 && lastTextStart >= 0) {
-                    tracex(0, "line %d, text start at %d ended at %d", l, lastTextStart, c - spacesSeen + 1);
+                    tracex(1, "line %d, text start at %d ended at %d", l, lastTextStart, c - spacesSeen + 1);
 
                     column_buffer_add_column(cb, lastTextStart, upper_window_buffer, l, lastTextStart, c - spacesSeen + 1);
 
@@ -124,7 +124,7 @@ COLUMNBUF * infer_upper_window_parts() {
                 }
             } else {
                 if (lastTextStart < 0) {
-                    tracex(0, "line %d, text start at: %d", l, c);
+                    tracex(1, "line %d, text start at: %d", l, c);
                     lastTextStart = c;
                 }
                 spacesSeen = 0;
