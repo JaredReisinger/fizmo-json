@@ -180,7 +180,7 @@ void line_buffer_prepend_and_free(LINEBUF* buf, LINEBUF** prepend) {
 }
 
 
-json_t* line_buffer_to_json(LINEBUF* buf) {
+json_t* line_buffer_to_json(LINEBUF* buf, bool avoidPrompt) {
     trace(1, "%p", buf);
 
     line_buffer *lb = (line_buffer *)buf;
@@ -188,7 +188,24 @@ json_t* line_buffer_to_json(LINEBUF* buf) {
 
     json_t* lines = json_array();
 
-    for (int l = 0; l < lb->nextLine+1; l++) {
+    int last = lb->nextLine;
+    if (avoidPrompt) {
+        if (lb->lines[last] != NULL) {
+            last--;
+        }
+
+        while (lb->lines[last] == NULL) {
+            last--;
+        }
+
+        last++;
+    } else {
+        if (lb->lines[last] != NULL) {
+            last++;
+        }
+    }
+
+    for (int l = 0; l < last; l++) {
         json_array_append_new(lines, formatted_text_to_json(lb->lines[l]));
     }
 

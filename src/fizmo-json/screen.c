@@ -146,11 +146,11 @@ void generate_json_output() {
     free_column_buffer(&cb);
 
     LINEBUF *lb = buffer_upper_window();
-    json_object_set_new(status, "lines", line_buffer_to_json(lb));
+    json_object_set_new(status, "lines", line_buffer_to_json(lb, false));
     free_line_buffer(&lb);
 
     // Collect story lines (buffered window)...
-    json_t* story = line_buffer_to_json(screen_linebuf);
+    json_t* story = line_buffer_to_json(screen_linebuf, true);
 
     json_t* output = json_object();
     json_object_set_new(output, "status", status);
@@ -293,7 +293,7 @@ int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
     struct timeval end;
     int n = gettimeofday(&start, NULL); // do we care about failed calls?
 
-    fprintf(stderr, "\n\e[38;5;13mwaiting to read%s...\e[0m\n", single ? " (single character only!)": "");
+    // fprintf(stderr, "\n\e[38;5;13mwaiting to read%s...\e[0m\n", single ? " (single character only!)": "");
 
     // Extract input string...
     char buf[1000];
