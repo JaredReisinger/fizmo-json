@@ -1,5 +1,7 @@
 // This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
+#include "screen.h"
+
 extern "C" {
     #include <stdio.h>
     #include <ctype.h>
@@ -15,15 +17,18 @@ extern "C" {
     #include <jansson.h>
 }
 
-#include "screen.h"
 #include "config.h"
 #include "util.h"
 #include "buffer.h"
 #include "columns.h"
 #include "format.h"
 
-// format_info currentFormat = DEFAULT_FORMAT;
 Format currentFormat;
+Buffer screenBuffer;
+
+// The BLOCKBUF tracked by fizmo *never* shrinks (for performance and other
+// reasons), but we need to know the intended size when rendering output.
+int upperWindowHeight = 0;
 
 const int STORY_WINDOW = 0;
 const int STATUS_WINDOW = 1;
@@ -37,130 +42,30 @@ void screen_use_console_input() {
     use_console_input = true;
 }
 
-
-// The BLOCKBUF tracked by fizmo *never* shrinks (for performance and other
-// reasons), but we need to know the intended size when rendering output.
-int upper_window_actual_height = 0;
-
-// LINEBUF *screen_linebuf = NULL;
-Buffer screen_buffer;
-
-// // We sometimes see the upper window used to provide "popup" text, as opposed to
-// // status text... so we need to make it look like buffered text so that it shows
-// // up reasonably.
-// LINEBUF* buffer_upper_window() {
-//     trace(1, "");
-//
-//     // Buffer *buffer = new Buffer();
-//
-//     LINEBUF *lb = create_line_buffer();
-//
-//     char buf[upper_window_buffer->width+1];
-//     int buflen = 0;
-//
-//     for (int l = 0; l < upper_window_actual_height; l++) {
-//         // work right-to-left to find the last non-empty position...
-//         int end;
-//         for (end = upper_window_buffer->width - 1; end >= 0; end--) {
-//             struct blockbuf_char *bbch = blockbuf_char_at_yx(upper_window_buffer, l, end);
-//             if (bbch->character != Z_UCS_SPACE ||
-//                 bbch->font != upper_window_buffer->default_font ||
-//                 bbch->style != upper_window_buffer->default_style ||
-//                 bbch->foreground_colour != upper_window_buffer->default_foreground_colour ||
-//                 bbch->background_colour != upper_window_buffer->default_background_colour ) {
-//                 break;
-//             }
-//         }
-//
-//         end++;
-//
-//         formatted_text *text = formatted_text_from_blockbuf(upper_window_buffer, l, 0, end);
-//         line_buffer_append_text(lb, &text, true);
-//     }
-//
-//     return lb;
-// }
-
-// void dump_upper_window() {
-//     for (int l = 0; l < upper_window_actual_height; l++) {
-//         fprintf(stderr, "[");
-//         for (int c = 0; c < upper_window_buffer->width; c++) {
-//             const struct blockbuf_char *bbch = blockbuf_char_at_yx(upper_window_buffer, l, c);
-//             const char ch = zucs_char_to_latin1_char(bbch->character);
-//             fprintf(stderr, "%c", ch);
-//         }
-//         fprintf(stderr, "]\n");
-//     }
-// }
-
-// // The upper window (status window) is often divided into "parts": location,
-// // score/turns, date/time, etc.  A game *can* do anything there, but we should
-// // at least be able to tell if it looks like there are separate pieces of
-// // information.  In particular, we want to look for distinct columns of text,
-// // those separated by 3 or more spaces.
-// COLUMNBUF * infer_upper_window_parts() {
-//     trace(1, "");
-//
-//     // dump_upper_window();
-//
-//     COLUMNBUF *cb = create_column_buffer();
-//
-//     int columnStarts[20];
-//     int columns = 0;
-//
-//     for (int l = 0; l < upper_window_actual_height; l++) {
-//         tracex(1, "looking at line %d", l);
-//         int lastTextStart = -1;
-//         int spacesSeen = 0;
-//         for (int c = 0; c < upper_window_buffer->width; c++) {
-//             const struct blockbuf_char *bbch = blockbuf_char_at_yx(upper_window_buffer, l, c);
-//             const char ch = zucs_char_to_latin1_char(bbch->character);
-//
-//             if (ch == ' ') {
-//                 spacesSeen++;
-//                 if (spacesSeen >= 3 && lastTextStart >= 0) {
-//                     tracex(1, "line %d, text start at %d ended at %d", l, lastTextStart, c - spacesSeen + 1);
-//
-//                     column_buffer_add_column(cb, lastTextStart, upper_window_buffer, l, lastTextStart, c - spacesSeen + 1);
-//
-//                     columnStarts[columns++] = lastTextStart;
-//                     lastTextStart = -1;
-//                 }
-//             } else {
-//                 if (lastTextStart < 0) {
-//                     tracex(1, "line %d, text start at: %d", l, c);
-//                     lastTextStart = c;
-//                 }
-//                 spacesSeen = 0;
-//             }
-//         }
-//     }
-//
-//     return cb;
-// }
-//
 // Generate a JSON object for the output...
 void generate_json_output() {
     trace(1, "");
 
-    // // Collect status (unbuffered window)
-    // json_t* status = json_object();
-    // COLUMNBUF *cb = infer_upper_window_parts();
-    // json_object_set_new(status, "columns", column_buffer_to_json(cb));
-    // free_column_buffer(&cb);
-    //
-    // LINEBUF *lb = buffer_upper_window();
-    // json_object_set_new(status, "lines", line_buffer_to_json(lb, false));
-    // free_line_buffer(&lb);
-    //
-    // // Collect story lines (buffered window)...
-    // json_t* story = line_buffer_to_json(screen_linebuf, true);
+    // Collect status
+    BlockBuf upperWindow(upper_window_buffer, upperWindowHeight);
+    Columns columns(upperWindow);
+    // std::cerr << columns << "\n";
+    auto upperBuffer = upperWindow.ToBuffer();
 
-    json_t* story = screen_buffer.ToJson(true, true);
+    json_t* status = json_object();
+    json_object_set_new(status, "columns", columns.ToJson());
+    json_object_set_new(status, "lines", upperBuffer->ToJson());
+    delete upperBuffer;
+    upperBuffer = NULL;
 
+    // Collect story
+    json_t* story = screenBuffer.ToJson(true, true);
+
+    // Put it all together!
     json_t* output = json_object();
-    // json_object_set_new(output, "status", status);
+    json_object_set_new(output, "status", status);
     json_object_set_new(output, "story", story);
+
     char *str = json_dumps(output, JSON_INDENT(2));
     json_decref(output);
 
@@ -214,7 +119,6 @@ void screen_link_to_story(struct z_story *story) {
 // Called at @restart time.
 void screen_reset() {
     trace(1, "");
-    // currentFormat = DEFAULT_FORMAT;
     currentFormat.Reset();
 }
 
@@ -259,55 +163,20 @@ void screen_set_buffer_mode(uint8_t new_buffer_mode) {
 
 
 void screen_output_z_ucs(z_ucs *z_ucs_output) {
-    // // debug output (for now...)
-    // char *debug = dup_zucs_string_to_utf8_string(z_ucs_output);
-    // trace(1, "\"%s\"", debug);
-    // free(debug);
-
     if (currentWindow != STORY_WINDOW) {
         return;
     }
 
-    // if (screen_buffer == NULL) {
-    //     screen_buffer = new Buffer();
-    // }
-
-    screen_buffer.Append(Span::ConvertZucsString(z_ucs_output), currentFormat);
-
-    // if (screen_linebuf == NULL) {
-    //     screen_linebuf = create_line_buffer();
-    // }
-    //
-    // // Start outputting where we left off... break the output into lines (TBD)
-    // char *output = dup_zucs_string_to_utf8_string(z_ucs_output);
-    // int lineStart = 0;
-    // int len = strlen(output);
-    // for (int i = 0; i < len; i++) {
-    //     if (output[i] == '\n') {
-    //         // Take what we have and buffer it...
-    //         line_buffer_append(screen_linebuf, output, lineStart, i, currentFormat, true);
-    //         lineStart = i+1;
-    //     }
-    // }
-    // if (lineStart < len) {
-    //     line_buffer_append(screen_linebuf, output, lineStart, len, currentFormat, false);
-    // }
-    // free(output);
+    screenBuffer.Append(ToUtf8(z_ucs_output), currentFormat);
 }
 
 // The JSON I/O may need to go elsewhere, this is a temporary stub
 int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
     trace(2, "%s, (*dest), %d, (*elapsedTenths)", single ? "true" : "false", max);
 
-    // std::cerr << screen_buffer << "\n";
+    // std::cerr << screenBuffer << "\n";
     generate_json_output();
-    screen_buffer.Empty();
-    // free_line_buffer(&screen_linebuf);
-
-    // tracex(0, "deleting buffer %p...", screen_buffer);
-    // delete screen_buffer;
-    // screen_buffer = NULL;
-    // tracex(0, "deleted buffer %p...", screen_buffer);
+    screenBuffer.Empty();
 
     struct timeval start;
     struct timeval end;
@@ -400,23 +269,17 @@ int screen_read_char(uint16_t tenth_seconds,
 void screen_show_status(z_ucs *room_description,
     int status_line_mode, int16_t parameter1, int16_t parameter2) {
     trace(1, "%s, %d, %d, %d", (char*)room_description, status_line_mode, parameter1, parameter2);
+    // REVIEW: ???
 }
 
 void screen_set_text_style(z_style text_style) {
-    trace(1, "%d", text_style);
-
+    trace(1, "%d (%s)", text_style, Format::StyleName(text_style));
     currentFormat.SetStyle(text_style);
-
-    // if (text_style == Z_STYLE_ROMAN) {
-    //     currentFormat.style = Z_STYLE_ROMAN;
-    // } else {
-    //     currentFormat.style |= text_style;
-    // }
 }
 
 
 void screen_set_colour(z_colour foreground, z_colour background, int16_t window) {
-    trace(1, "%d, %d, %d", foreground, background, window);
+    trace(1, "%d (%s), %d (%s), %d", foreground, Format::ColorName(foreground), background, Format::ColorName(background), window);
     if (window != STORY_WINDOW) {
         return;
     }
@@ -425,67 +288,26 @@ void screen_set_colour(z_colour foreground, z_colour background, int16_t window)
 }
 
 
-const char* FONT_NAMES[] = {
-    "PREVIOUS",
-    "NORMAL",
-    "PICTURE",
-    "CHARACTER_GRAPHICS",
-    "COURIER_FIXED_PITCH",
-};
-
 void screen_set_font(z_font font_type) {
-    trace(1, "%s", FONT_NAMES[font_type]);
+    trace(1, "%d (%s)", font_type, Format::FontName(font_type));
     currentFormat.SetFont(font_type);
 }
 
 void screen_split_window(int16_t nof_lines) {
     trace(1, "%d lines", nof_lines);
 
-    // TODO: THIS WILL NEED REVAMPING!
-
     // If we're shrinking it, force-dump the current values.  This appears to be
     // needed for Graham Nelson's "Curses", for example, for the intro quote.
-    if (nof_lines < upper_window_actual_height) {
+    if (nof_lines < upperWindowHeight) {
         tracex(1, "prepending upper window!");
-        // LINEBUF *lb = buffer_upper_window();
-        //
-        // if (screen_linebuf == NULL) {
-        //     screen_linebuf = lb;
-        // } else {
-        //     line_buffer_prepend_and_free(screen_linebuf, &lb);
-        //     tracex(1, "screen_linebuf is %p", screen_linebuf);
-        // }
-        BlockBuf upper(upper_window_buffer);
-        Buffer buf;
-        const blockbuf_char bbchNewline = (blockbuf_char){.character = Z_UCS_NEWLINE};
-
-        for (int l = 0; l < upper_window_actual_height; l++) {
-            // work right-to-left to find the last non-empty position...
-            int end;
-            for (end = upper_window_buffer->width - 1; end >= 0; end--) {
-                auto bbch = upper.At(l, end);
-                if (bbch.character != Z_UCS_SPACE ||
-                    bbch.font != upper_window_buffer->default_font ||
-                    bbch.style != upper_window_buffer->default_style ||
-                    bbch.foreground_colour != upper_window_buffer->default_foreground_colour ||
-                    bbch.background_colour != upper_window_buffer->default_background_colour ) {
-                    break;
-                }
-            }
-
-            end++;
-
-            for (int c = 0; c < end; c++) {
-                buf.Append(upper.At(l, c));
-            }
-            buf.Append(bbchNewline);
-        }
-
+        BlockBuf upperWindow(upper_window_buffer, upperWindowHeight);
+        auto buf = upperWindow.ToBuffer();
         // std::cerr << buf << "\n";
-        screen_buffer.Prepend(buf);
+        screenBuffer.Prepend(*buf);
+        delete buf;
     }
 
-    upper_window_actual_height = nof_lines;
+    upperWindowHeight = nof_lines;
 }
 
 // We only support very simple "windows", where window 0 is the story, and

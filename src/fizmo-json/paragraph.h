@@ -14,6 +14,9 @@
 // A `Paragraph` represents contiguous `Span`s, up to a complete line.
 class Paragraph {
   public:
+    Paragraph();
+    Paragraph(const Paragraph &paragraph);
+
     // Construct a Paragraph from a fizmo block buffer.  This will create zero or more
     // Spans, one for each change of format.
     Paragraph(const BlockBuf &buf, int line, int start, int end);

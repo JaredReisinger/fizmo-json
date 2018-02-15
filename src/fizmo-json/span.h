@@ -3,14 +3,11 @@
 #ifndef FIZMO_JSON_SPAN_H
 #define FIZMO_JSON_SPAN_H
 
-
-#include <codecvt>
-#include <iostream>
 #include <list>
+#include <ostream>
 #include <string>
 
 extern "C" {
-    #include <interpreter/blockbuf.h>
     #include <jansson.h>
 }
 
@@ -21,6 +18,8 @@ extern "C" {
 // smallest "interesting" piece of text we will ever care about.
 class Span {
   public:
+    Span(const Span &span);
+
     // Construct a Span from a fizmo block buffer.  Note that this will *not*
     // validate that the format stays constant; it uses the format at `start`,
     // and assumes it holds until `end`.
@@ -35,8 +34,6 @@ class Span {
 
     json_t* ToJson() const;
 
-    static std::string ConvertZucsString(const z_ucs *str);
-
     // Debugging helper?  Do we like this, or is the operator overload
     // obnoxious?
     friend std::ostream & operator<<(std::ostream &os, const Span& span);
@@ -44,8 +41,6 @@ class Span {
   private:
     Format      format_;
     std::string str_;   // UTF-8-encoded string
-
-    static std::wstring_convert<std::codecvt_utf8<wchar_t>> utf8conv_;
 };
 
 #endif // FIZMO_JSON_SPAN_H

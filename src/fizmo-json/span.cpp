@@ -1,20 +1,16 @@
 // This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
 #include "span.h"
-
 #include "util.h"
 
-// Note that the fizmo character conversion functions almost, but not quite,
-// convert into UTF-8.  In particular, zucs_string_to_utf8_string() converts
-// into the 1993 variation of UTF-8 which allows for length 5 and 6 encodings.
-// This was removed from UTF-8 in 2003 (see RFC 3629).  Further, the single-
-// character helper, zucs_char_to_latin1_char() simply lops off the high bits,
-// and returns '?' for any multi-octet character.  In order to more-fully
-// support modern output, we use system UTF-8 encodings.
-std::wstring_convert<std::codecvt_utf8<wchar_t>> Span::utf8conv_;
+Span::Span(const Span &span)
+: format_(span.format_), str_(span.str_) {
+    trace(2, "[%p] copy from %p", this, &span);
+}
+
 
 Span::Span(const BlockBuf &buf, int line, int start, int end) {
-    trace(2, "%p, %p, %d, %d, %d", this, &buf, line, start, end);
+    trace(2, "[%p] %p, %d, %d, %d", this, &buf, line, start, end);
 
     format_ = buf.At(line, start);
 
@@ -24,20 +20,18 @@ Span::Span(const BlockBuf &buf, int line, int start, int end) {
 }
 
 Span::Span(const struct blockbuf_char& bbch) {
-    trace(2, "%p, %c", this, bbch.character);
+    trace(2, "[%p] %c", this, bbch.character);
     Append(bbch);
 }
 
 Span::Span(const std::string &str, const Format &format)
 : format_(format), str_(str) {
-    trace(2, "%p, \"%s\", %p", this, str.c_str(), &format);
-    // format_ = format;
-    // str_ = str;
+    trace(2, "[%p] \"%s\", %p", this, str.c_str(), &format);
 }
 
 
 bool Span::Append(const BlockBuf &buf, int line, int col) {
-    trace(2, "%p, %d, %d, %d", &buf, line, col);
+    trace(2, "[%p] %p, %d, %d, %d", this, &buf, line, col);
     return Append(buf.At(line, col));
 }
 
@@ -50,7 +44,7 @@ bool Span::Append(const struct blockbuf_char& bbch) {
     if (format_ == bbch) {
         // str_ += bbch.character;
         // std::wstring_convert<std::codecvt_utf8<wchar_t>> conv;
-        str_ += utf8conv_.to_bytes((wchar_t)bbch.character);
+        str_ += ToUtf8(bbch.character);
         return true;
     }
 
@@ -77,10 +71,6 @@ json_t* Span::ToJson() const {
     return obj;
 }
 
-// static
-std::string Span::ConvertZucsString(const z_ucs *str) {
-    return utf8conv_.to_bytes((const wchar_t *)str);
-}
 
 std::ostream & operator<<(std::ostream &os, const Span& span) {
     return os << "<span:(" << span.format_ << ")[" << span.str_ << "]>";

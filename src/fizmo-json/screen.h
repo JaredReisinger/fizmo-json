@@ -3,6 +3,10 @@
 #ifndef FIZMO_JSON_SCREEN_H
 #define FIZMO_JSON_SCREEN_H
 
+extern "C" {
+    #include <screen_interface/screen_interface.h>
+}
+
 // The standard Z-machine, Glk, and fizmo models of the screen all assume a
 // fixed-size, rectangular buffer... but while that's useful for the status
 // window, it actually complicates the regular, buffered story window.  To that
