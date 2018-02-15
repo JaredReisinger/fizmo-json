@@ -1,5 +1,3 @@
-// filesys.c
-//
 // This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
 extern "C" {

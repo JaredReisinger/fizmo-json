@@ -1,5 +1,3 @@
-// filesys.h
-//
 // This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
 #ifndef FIZMO_JSON_FILESYS_H

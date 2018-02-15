@@ -1,9 +1,6 @@
-/* fizmo-json.c
- *
- * This file is part of fizmo-json.  Please see LICENSE.md for the license.
- */
+// This file is part of fizmo-json.  Please see LICENSE.md for the license.
 
- extern "C" {
+extern "C" {
     // #include <stdio.h>
     #include <stdlib.h>
     #include <getopt.h>
