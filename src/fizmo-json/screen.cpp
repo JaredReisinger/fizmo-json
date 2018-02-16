@@ -278,8 +278,8 @@ int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
     for (int i = 0; i < max; i++) {
         if (buf[i] == '\0') {
             dest[i] = '\0';
-            tracex(1, "read (%d): \"%s\"", i-1, dest);
-            return i-1;
+            tracex(1, "read (%d): \"%s\"", i, dest);
+            return i;
         }
 
         dest[i] = buf[i];
