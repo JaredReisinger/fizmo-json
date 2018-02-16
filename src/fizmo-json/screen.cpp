@@ -2,6 +2,9 @@
 
 #include "screen.h"
 
+#include <map>
+#include <string>
+
 extern "C" {
     #include <stdio.h>
     #include <ctype.h>
@@ -35,15 +38,34 @@ const int STATUS_WINDOW = 1;
 
 int currentWindow = STORY_WINDOW;
 
-static bool use_console_input = false;
+// The standard Z-machine, Glk, and fizmo models of the screen all assume a
+// fixed-size, rectangular buffer... but while that's useful for the status
+// window, it actually complicates the regular, buffered story window.  To that
+// end, we track the buffered and unbuffered variations completely separately.
+//
+// The buffered text is treated much like HTML, with block (line), and span
+// flow.  Its content is *never* placed into the unbuffered grid, under the
+// assumption that no game would explicitly set the cursor into the midst of a
+// buffered run in order to update the text.
+//
+// A full-screen-sized unbuffered window is tracked purely for the purposes of
+// capturing the status line(s), and/or any explicitly layed-out text (like the
+// quote in the beginning of Graham Nelson's "Curses").  We use a screen size
+// of 100x255: 100 characters wide allows us to easily infer left/center/right
+// alignment, and 255 lines is, as per the Z-machine spec section 8.4.1,
+// "infinte height".
+const int SCREEN_WIDTH  = 100;
+const int SCREEN_HEIGHT = 255;
 
-void screen_use_console_input() {
+static bool use_simple_console_input = false;
+
+void screen_use_simple_console_input() {
     trace(1, "");
-    use_console_input = true;
+    use_simple_console_input = true;
 }
 
 // Generate a JSON object for the output...
-void generate_json_output() {
+void generate_output() {
     trace(1, "");
 
     // Collect status
@@ -170,12 +192,19 @@ void screen_output_z_ucs(z_ucs *z_ucs_output) {
     screenBuffer.Append(ToUtf8(z_ucs_output), currentFormat);
 }
 
+const std::map<std::string, const char> word_char_map = {
+    { "space",  ' ' },
+    { "enter",  '\n' },
+    { "return", '\n' },
+};
+
+
 // The JSON I/O may need to go elsewhere, this is a temporary stub
 int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
     trace(2, "%s, (*dest), %d, (*elapsedTenths)", single ? "true" : "false", max);
 
     // std::cerr << screenBuffer << "\n";
-    generate_json_output();
+    generate_output();
     screenBuffer.Empty();
 
     struct timeval start;
@@ -188,7 +217,13 @@ int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
     char buf[1000];
     buf[0] = '\0';
 
-    if (!use_console_input) {
+    if (use_simple_console_input) {
+        char * str = fgets(buf, sizeof(buf), stdin);
+        if (!str) {
+            tracex(1, "error reading line");
+            return -1;
+        }
+    } else {
         json_error_t error;
         json_t *input = json_loadf(stdin, JSON_DISABLE_EOF_CHECK, &error);
         if (!input) {
@@ -204,14 +239,8 @@ int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
         }
 
         const char *value = json_string_value(json_object_get(input, "input"));
-        strlcpy(buf, value, 1000);
+        strlcpy(buf, value, sizeof(buf));
         json_decref(input);
-    } else {
-        char * str = fgets(buf, 1000, stdin);
-        if (!str) {
-            tracex(1, "error reading line");
-            return -1;
-        }
     }
 
     n = gettimeofday(&end, NULL); // do we care about failed calls?
@@ -224,11 +253,33 @@ int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
         tracex(2, "no elapsed time requested");
     }
 
+    // terminate as of the first newline... *except* for the single-char case
+    // when the newline is the first character.
+    if (!(single && buf[0] == '\n')) {
+        char *newline = strchr(buf, '\n');
+        if (newline != NULL) {
+            *newline = '\0';
+        }
+    }
+
+    // Special-case for single... recognize some special terms and translate
+    // them to specific characters.
+    if (single) {
+        trace(1, "looking up \"%s\" in %d-entry word_char_map...", buf, word_char_map.size());
+        auto found = word_char_map.find(buf);
+        if (found != word_char_map.end()) {
+            trace(1, "found \"%s\" -> '%c' in word_char_map...", buf, found->second);
+            buf[0] = found->second;
+            buf[1] = '\0';
+        }
+    }
+
+    // Finally, copy everything to the destination buffer...
     for (int i = 0; i < max; i++) {
-        if (buf[i] == '\n' || buf[i] == 0) {
-            dest[i] = 0;
-            tracex(1, "read (%d): \"%s\"", i, dest);
-            return i;
+        if (buf[i] == '\0') {
+            dest[i] = '\0';
+            tracex(1, "read (%d): \"%s\"", i-1, dest);
+            return i-1;
         }
 
         dest[i] = buf[i];
@@ -237,6 +288,7 @@ int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
     tracex(1, "read maximum length");
     return max;
 }
+
 
 
 int16_t screen_read_line(zscii *dest, uint16_t maximum_length,

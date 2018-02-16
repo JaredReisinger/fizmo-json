@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
                 break;
 
             case 'c':
-                screen_use_console_input();
+                screen_use_simple_console_input();
                 break;
 
             case 't':
