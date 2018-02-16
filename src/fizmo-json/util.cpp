@@ -4,6 +4,10 @@
 #include <codecvt>
 #include <locale>
 
+extern "C" {
+    #include <stdarg.h>
+}
+
 static int current_trace_level = 0;
 
 
