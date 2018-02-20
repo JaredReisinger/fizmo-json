@@ -14,6 +14,8 @@ extern "C" {
     // fizmo includes...
     #include <interpreter/fizmo.h>
     #include <interpreter/streams.h>
+    #include <interpreter/text.h>
+    #include <interpreter/zscii.h>
     #include <tools/z_ucs.h>
 
     // jansson...
@@ -192,15 +194,45 @@ void screen_output_z_ucs(z_ucs *z_ucs_output) {
     screenBuffer.Append(ToUtf8(z_ucs_output), currentFormat);
 }
 
-const std::map<std::string, const char> word_char_map = {
-    { "space",  ' ' },
-    { "enter",  '\n' },
-    { "return", '\n' },
+const std::map<std::u32string, const zscii> single_map = {
+    { U"delete",  ZSCII_DELETE },
+    { U"tab",     ZSCII_TAB },
+    { U"space",   ' ' },
+    { U"newline", ZSCII_NEWLINE },
+    { U"enter",   ZSCII_NEWLINE },
+    { U"return",  ZSCII_NEWLINE },
+    { U"escape",  ZSCII_ESCAPE },
+    { U"up",      ZSCII_CURSOR_UP },
+    { U"down",    ZSCII_CURSOR_DOWN },
+    { U"left",    ZSCII_CURSOR_LEFT },
+    { U"right",   ZSCII_CURSOR_RIGHT },
+    { U"f1",      ZSCII_F1 },
+    { U"f2",      ZSCII_F2 },
+    { U"f3",      ZSCII_F3 },
+    { U"f4",      ZSCII_F4 },
+    { U"f5",      ZSCII_F5 },
+    { U"f6",      ZSCII_F6 },
+    { U"f7",      ZSCII_F7 },
+    { U"f8",      ZSCII_F8 },
+    { U"f9",      ZSCII_F9 },
+    { U"f10",     ZSCII_F10 },
+    { U"f11",     ZSCII_F11 },
+    { U"f12",     ZSCII_F12 },
 };
 
+// #define ZSCII_KEYPAD_0 145
+// #define ZSCII_KEYPAD_1 146
+// #define ZSCII_KEYPAD_2 147
+// #define ZSCII_KEYPAD_3 148
+// #define ZSCII_KEYPAD_4 149
+// #define ZSCII_KEYPAD_5 150
+// #define ZSCII_KEYPAD_6 151
+// #define ZSCII_KEYPAD_7 152
+// #define ZSCII_KEYPAD_8 153
+// #define ZSCII_KEYPAD_9 154
 
 // The JSON I/O may need to go elsewhere, this is a temporary stub
-int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
+int wait_for_input(bool single, zscii *dest, int max, int *elapsedTenths) {
     trace(2, "%s, (*dest), %d, (*elapsedTenths)", single ? "true" : "false", max);
 
     // std::cerr << screenBuffer << "\n";
@@ -214,15 +246,16 @@ int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
     // fprintf(stderr, "\n\e[38;5;13mwaiting to read%s...\e[0m\n", single ? " (single character only!)": "");
 
     // Extract input string...
-    char buf[1000];
-    buf[0] = '\0';
+    std::u32string u32input;
 
     if (use_simple_console_input) {
-        char * str = fgets(buf, sizeof(buf), stdin);
-        if (!str) {
+        char buf[1000];
+        const char * value = fgets(buf, sizeof(buf), stdin);
+        if (!value) {
             tracex(1, "error reading line");
             return -1;
         }
+        u32input = FromUtf8(value);
     } else {
         json_error_t error;
         json_t *input = json_loadf(stdin, JSON_DISABLE_EOF_CHECK, &error);
@@ -239,8 +272,9 @@ int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
         }
 
         const char *value = json_string_value(json_object_get(input, "input"));
-        strlcpy(buf, value, sizeof(buf));
+        u32input = FromUtf8(value);
         json_decref(input);
+        // strlcpy(buf, value, sizeof(buf));
     }
 
     n = gettimeofday(&end, NULL); // do we care about failed calls?
@@ -255,38 +289,43 @@ int wait_for_input(bool single, char *dest, int max, int *elapsedTenths) {
 
     // terminate as of the first newline... *except* for the single-char case
     // when the newline is the first character.
-    if (!(single && buf[0] == '\n')) {
-        char *newline = strchr(buf, '\n');
-        if (newline != NULL) {
-            *newline = '\0';
-        }
+    auto iNewline = u32input.find('\n');
+    if (iNewline != std::u32string::npos && !(single && iNewline == 0)) {
+        u32input.resize(iNewline);
     }
 
     // Special-case for single... recognize some special terms and translate
     // them to specific characters.
     if (single) {
-        trace(1, "looking up \"%s\" in %d-entry word_char_map...", buf, word_char_map.size());
-        auto found = word_char_map.find(buf);
-        if (found != word_char_map.end()) {
-            trace(1, "found \"%s\" -> '%c' in word_char_map...", buf, found->second);
-            buf[0] = found->second;
-            buf[1] = '\0';
+        tracex(1, "looking up \"%ls\" in %d-entry single_map...", u32input.c_str(), single_map.size());
+        auto found = single_map.find(u32input);
+        if (found != single_map.end()) {
+            tracex(1, "found \"%ls\" -> '%c' in single_map...", u32input.c_str(), found->second);
+            dest[0] = found->second;
+            if (max > 1) {
+                dest[1] =  '\0';
+            }
+            return 1;
         }
     }
 
     // Finally, copy everything to the destination buffer...
-    for (int i = 0; i < max; i++) {
-        if (buf[i] == '\0') {
-            dest[i] = '\0';
-            tracex(1, "read (%d): \"%s\"", i, dest);
-            return i;
+
+    int o = 0;
+    for (int i = 0; i < u32input.length() && o < max-1; ++i, ++o) {
+        zscii ch = unicode_char_to_zscii_input_char(u32input[i]);
+        if (ch == 0xff) {
+            // silently drop the character?
+            tracex(1, "Droping unrecognized unicode character '%1$c' (%1$d)!", u32input[i]);
+            --o;
+            continue;
         }
-
-        dest[i] = buf[i];
+        tracex(1, "Converted '%1$c' (%1$d) to '%2$c' (%2$d)...\n", u32input[i], ch);
+        dest[o] = ch;
     }
+    dest[o] = '\0';
 
-    tracex(1, "read maximum length");
-    return max;
+    return o;
 }
 
 
@@ -300,18 +339,18 @@ int16_t screen_read_line(zscii *dest, uint16_t maximum_length,
         disable_command_history ? "true" : "false",
         return_on_escape? "true" : "false");
 
-    return wait_for_input(false, (char *)dest, maximum_length, tenth_seconds_elapsed);
+    return wait_for_input(false, dest, maximum_length, tenth_seconds_elapsed);
 }
 
 int screen_read_char(uint16_t tenth_seconds,
     uint32_t verification_routine, int *tenth_seconds_elapsed) {
     trace(1, "%d, %d, (*elapsed)", tenth_seconds, verification_routine);
 
-    char ch;
-    int n = wait_for_input(true, &ch, 1, tenth_seconds_elapsed);
+    zscii buf[2];
+    int n = wait_for_input(true, buf, 2, tenth_seconds_elapsed);
     if (n > 0) {
-        tracex(1, "returning %d ('%c')", ch, ch);
-        return ch;
+        tracex(1, "returning %1$d ('%1$c')", buf[0]);
+        return buf[0];
     }
 
     tracex(1, "failure waiting for input");

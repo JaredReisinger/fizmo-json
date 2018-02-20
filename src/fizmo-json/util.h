@@ -26,4 +26,6 @@ extern void set_trace_level(int trace_level);
 std::string ToUtf8(const z_ucs *str);
 std::string ToUtf8(const z_ucs ch);
 
+std::u32string FromUtf8(const char *);
+
 #endif // FIZMO_JSON_UTIL_H

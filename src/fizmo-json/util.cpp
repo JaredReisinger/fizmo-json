@@ -42,13 +42,18 @@ void set_trace_level(int trace_level) {
 }
 
 
-static std::wstring_convert<std::codecvt_utf8<wchar_t>> utf8conv;
+static std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> utf8conv;
 
 
 std::string ToUtf8(const z_ucs *str) {
-    return utf8conv.to_bytes((const wchar_t *)str);
+    return utf8conv.to_bytes((const char32_t *)str);
 }
 
 std::string ToUtf8(const z_ucs ch) {
-    return utf8conv.to_bytes((const wchar_t)ch);
+    return utf8conv.to_bytes((const char32_t)ch);
+}
+
+// std::u32string is effectively the same as z_ucs*.
+std::u32string FromUtf8(const char *str) {
+    return utf8conv.from_bytes(str);
 }
