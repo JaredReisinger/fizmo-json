@@ -25,7 +25,17 @@ z_file* filesys_openfile(char *filename, int filetype, int fileaccess) {
         return NULL;
     }
 
-    FILE *file = fopen(filename, "r");
+    const char *mode;
+    switch (fileaccess) {
+        case FILEACCESS_READ:   mode = "r"; break;
+        case FILEACCESS_WRITE:  mode = "w"; break;
+        case FILEACCESS_APPEND: mode = "a"; break;
+        default:
+            tracex(1, "unexpected fileaccess: %d", fileaccess);
+            return NULL;
+    }
+
+    FILE *file = fopen(filename, mode);
     if (!file) {
         tracex(1, "open file failed");
         return NULL;
@@ -98,30 +108,30 @@ int filesys_writechar(int ch, z_file *fileref) {
         return -1;
     }
 
-    return 0;
+    int result = fputc(ch, (FILE *)(fileref->file_object));
+    tracex(1, "wrote '%1$c' (%1$d)", result);
+
+    return result;
 }
 
 // Returns number of bytes successfully written.
 size_t filesys_writechars(void *ptr, size_t len, z_file *fileref) {
-    trace(1, "%s", fileref ? fileref->filename : "(NULL)");
+    trace(1, "%p, %d, %s", ptr, len, fileref ? fileref->filename : "(NULL)");
 
     if (!fileref || !fileref->file_object) {
         tracex(1, "no file, bailing");
         return -1;
     }
 
-    return 0;
+    size_t result = fwrite(ptr, 1, len, (FILE *)(fileref->file_object));
+    tracex(1, "wrote %d bytes", result);
+
+    return result;
 }
 
 int filesys_writestring(char *s, z_file *fileref) {
     trace(1, "\"%s\", %s", s, fileref ? fileref->filename : "(NULL)");
-
-    if (!fileref || !fileref->file_object) {
-        tracex(1, "no file, bailing");
-        return -1;
-    }
-
-    return 0;
+    return filesys_writechars(s, strlen(s), fileref);
 }
 
 int filesys_writeucsstring(z_ucs *s, z_file *fileref) {
@@ -131,6 +141,9 @@ int filesys_writeucsstring(z_ucs *s, z_file *fileref) {
         tracex(1, "no file, bailing");
         return -1;
     }
+
+    // TODO: Use proper UTF8 conversion?  maybe not, as the reading needs to
+    // match...
 
     return 0;
 }

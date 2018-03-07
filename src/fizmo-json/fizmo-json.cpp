@@ -8,7 +8,7 @@ extern "C" {
 
     // fizmo includes...
     #include <interpreter/fizmo.h>
-    // #include <interpreter/config.h>
+    #include <interpreter/config.h>
     #include <tools/filesys.h>  // need this to register filesys... should be better?
 }
 
@@ -16,31 +16,39 @@ extern "C" {
 #include "filesys.h"
 #include "util.h"
 
+const char *usageFmt = R"(
+OVERVIEW: %1$s, the bot-focused JSON frontend to fizmo.
+
+USAGE: %1$s [options] <storyfile>
+
+OPTIONS:
+  -h, --help                  this list
+  -V, --version               version of %1$s
+  -c, --console               use simple input, not JSON
+  -t, --trace-level <level>   trace level for stderr
+  -s, --save-file <filename>  name for auto-save/restore file
+
+and <storyfile> is the path to a fizmo-runnable story.
+
+If you are running this directly from the command-line, be aware that it
+expects JSON-formatted input, like:
+
+  { "input": "look" }
+
+unless the `--console` option has been provided; %1$s will wait until
+it reads a complete JSON object before proceeding.
+
+)";
+
+
 void usage(int exit_code) {
-    fprintf(stderr, "\n"
-        "OVERVIEW: %1$s, the bot-focused JSON frontend to fizmo.\n"
-        "\n"
-        "USAGE: %1$s [options] <storyfile>\n"
-        "\n"
-        "OPTIONS:\n"
-        "  -h, --help                  this list\n"
-        "  -V, --version               version of %1$s\n"
-        "  -c, --console               use simple input, not JSON\n"
-        "  -t, --trace-level <level>   trace level for stderr\n"
-        "\n"
-        "and <storyfile> is the path to a fizmo-runnable story.\n"
-        "\n"
-        "If you are running this directly from the command-line, be aware\n"
-        "that it expects JSON-formatted input, like:\n"
-        "\n"
-        "  { \"input\": \"look\" }\n"
-        "\n"
-        "%1$s will wait until it reads a complete JSON object before\n"
-        "proceeding.\n"
-        "\n",
-        PACKAGE_NAME);
+    fprintf(stderr, usageFmt, PACKAGE_NAME);
     exit(exit_code);
 }
+
+std::string saveFile;
+void set_save_file(const char *file);
+bool set_fizmo_config(const char *key, const char *value);
 
 int main(int argc, char **argv) {
     // trace(1, "%d (%s)", argc, argv[0]);
@@ -52,13 +60,14 @@ int main(int argc, char **argv) {
         { "help",        no_argument,       NULL, 'h' },
         { "console",     no_argument,       NULL, 'c' },
         { "trace-level", required_argument, NULL, 't' },
+        { "save-file",   required_argument, NULL, 's' },
         // { "", required_argument, NULL, '' },
         // { "", required_argument, NULL, '' },
         { NULL,          0,                 NULL, 0 }
     };
 
     int ch;
-    while ((ch = getopt_long(argc, argv, "Vhct:", long_options, NULL)) != -1) {
+    while ((ch = getopt_long(argc, argv, "Vhct:s:", long_options, NULL)) != -1) {
         switch (ch) {
 
             case 'V':
@@ -78,6 +87,10 @@ int main(int argc, char **argv) {
                 set_trace_level(atoi(optarg));
                 break;
 
+            case 's':
+                set_save_file(optarg);
+                break;
+
             default:
                 usage(-1);
         }
@@ -93,13 +106,13 @@ int main(int argc, char **argv) {
     }
 
     if (argc != 1) {
+        fprintf(stderr, "No storyfile provided!\n");
         usage(-2);
     }
 
     // TODO: implement command-line processing...
     char *storyfile = argv[0];
     tracex(1, "using storyfile: %s", storyfile);
-
 
     fizmo_register_filesys_interface(&bot_filesys);
     tracex(1, "registered filesys");
@@ -108,11 +121,35 @@ int main(int argc, char **argv) {
     int r = fizmo_register_screen_interface(&bot_screen);
     tracex(1, "register screen result: %d", r);
 
-    // open a test story file...
-    z_file *story = (&bot_filesys)->openfile(storyfile, FILETYPE_SAVEGAME, FILEACCESS_READ);
+    // Set config values...
+    set_fizmo_config("disable-external-streams", config_true_value);
+    set_fizmo_config("disable-restore", config_true_value);
+    set_fizmo_config("disable-save", config_true_value);
+    set_fizmo_config("disable-sound", config_true_value);
 
-    fizmo_start(story, NULL, NULL);
+    set_fizmo_config("autosave-filename", saveFile.c_str());
+    // set_configuration_value("savegame-path", ".");
+
+    // open a test story file...
+    z_file *story = (&bot_filesys)->openfile(storyfile, FILETYPE_DATA, FILEACCESS_READ);
+
+    z_file *restore = NULL;
+    if (!saveFile.empty()) {
+        restore = (&bot_filesys)->openfile((char*)saveFile.c_str(), FILETYPE_SAVEGAME, FILEACCESS_READ);
+    }
+
+    fizmo_start(story, NULL, restore);
 
     tracex(1, "%s exiting!\n", PACKAGE_NAME);
     return 0;
+}
+
+// cast from const char *, because fizmo uses old-school C...
+bool set_fizmo_config(const char *key, const char *value) {
+    return 0 == set_configuration_value(const_cast<char*>(key), const_cast<char*>(value));
+}
+
+void set_save_file(const char *file) {
+    trace(0, "\"%s\"", file);
+    saveFile = file;
 }

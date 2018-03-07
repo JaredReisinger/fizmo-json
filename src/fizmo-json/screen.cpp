@@ -480,6 +480,15 @@ int screen_prompt_for_filename(char *filename_suggestion,
     return -3;
 }
 
+// int screen_do_autosave() {
+//     trace(0, "");
+//     return 0;
+// }
+//
+// int screen_restore_autosave(z_file *savefile) {
+//     trace(0, "%p", savefile);
+//     return 0;
+// }
 
 
 struct z_screen_interface bot_screen = {
@@ -540,7 +549,9 @@ struct z_screen_interface bot_screen = {
     &screen_output_info,        // output_interface_info
     &screen_return_false,       // input_must_be_repeated_by_story
     &screen_game_was_restored_and_history_modified, // game_was_restored_and_history_modified
-    &screen_prompt_for_filename,    // prompt_for_filename
+    &screen_prompt_for_filename,// prompt_for_filename
+    // &screen_do_autosave,     // do_autosave
+    // &screen_restore_autosave // restore_autosave
     NULL,                       // do_autosave
     NULL                        // restore_autosave
 };
